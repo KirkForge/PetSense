@@ -1,0 +1,8 @@
+{
+  "node_id": "esp32-living-room",
+  "position": { "x": 3.5, "y": 2.0, "z": 1.5 },
+  "noise_floor_2ghz": -92,
+  "noise_floor_5ghz": -95,
+  "antenna_gain_dbi": 3.0,
+  "calibrated_at": "2026-05-03T00:00:00Z"
+}
