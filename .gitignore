@@ -18,3 +18,21 @@ logs/
 # Build
 dist/
 build/
+
+# Type checking
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
