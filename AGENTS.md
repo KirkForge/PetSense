@@ -1,7 +1,7 @@
 
 **See also**: [REPORULES.md](../REPORULES.md) — multi-machine sync, git identity, PAT handling, and new-repo bootstrap.
 
-# AGENTS.md — pet-wifi-sense
+# AGENTS.md — PetSense
 
 ## ⚠️ Mandatory Rules — Read Before Editing
 
