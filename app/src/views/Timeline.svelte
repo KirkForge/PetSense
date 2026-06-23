@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { pets } from '$lib/stores.svelte';
+  import { store } from '$lib/stores.svelte';
   import SpeciesBadge from '../components/SpeciesBadge.svelte';
 
   /** Activity color map */
@@ -31,7 +31,7 @@
   }
 
   const timelineEntries: TimelineEntry[] = $derived(
-    pets.map((pet, i) => ({
+    store.pets.map((pet, i) => ({
       petId: pet.id,
       species: pet.species,
       petName: pet.name ?? pet.id,
@@ -75,7 +75,7 @@
 </script>
 
 <div class="timeline-view">
-  {#if pets.length === 0}
+  {#if store.pets.length === 0}
     <div class="empty-state">
       <div class="empty-icon">🕐</div>
       <div class="empty-title">No activity yet</div>
@@ -157,7 +157,7 @@
 
     <!-- Pets Legend -->
     <div class="pets-summary">
-      {#each pets as pet}
+      {#each store.pets as pet}
         <div class="pet-summary-item">
           <SpeciesBadge species={pet.species} size="sm" />
           <span>{pet.name ?? pet.id}:</span>

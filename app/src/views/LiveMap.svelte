@@ -1,15 +1,15 @@
 <script lang="ts">
-  import { pets, floorPlan, selectedPetId, selectPet, getPetTrail, isConnected, PetLocation } from '$lib/stores.svelte';
+  import { store, selectPet, getPetTrail, type PetLocation } from '$lib/stores.svelte';
   import FloorPlan from '../components/FloorPlan.svelte';
   import SpeciesBadge from '../components/SpeciesBadge.svelte';
 
   let selectedPet: PetLocation | null = $derived(
-    selectedPetId ? pets.find((p) => p.id === selectedPetId) ?? null : null
+    store.selectedPetId ? store.pets.find((p) => p.id === store.selectedPetId) ?? null : null
   );
 
   function handleSelectPet(e: CustomEvent<string>) {
     const id = e.detail;
-    selectPet(selectedPetId === id ? null : id);
+    selectPet(store.selectedPetId === id ? null : id);
   }
 
   function lastSeenText(pet: PetLocation): string {
@@ -22,7 +22,7 @@
 </script>
 
 <div class="live-map">
-  {#if floorPlan.length === 0 && pets.length === 0}
+  {#if store.floorPlan.length === 0 && store.pets.length === 0}
     <div class="empty-state">
       <div class="empty-icon">📡</div>
       <div class="empty-title">No pets detected</div>
@@ -32,9 +32,9 @@
     <!-- Floor Plan Container -->
     <div class="map-container glass">
       <FloorPlan
-        rooms={floorPlan}
-        pets={pets}
-        selectedPetId={selectedPetId}
+        rooms={store.floorPlan}
+        pets={store.pets}
+        selectedPetId={store.selectedPetId}
         onselectpet={handleSelectPet}
       />
     </div>
@@ -86,21 +86,21 @@
             </div>
           </div>
         </div>
-      {:else if pets.length > 0}
+      {:else if store.pets.length > 0}
         <div class="pet-info glass" style="text-align:center;color:var(--text-muted);padding:var(--space-5);">
           Click a pet to see details
         </div>
       {/if}
 
       <!-- Pet List -->
-      {#if pets.length > 0}
+      {#if store.pets.length > 0}
         <div class="pet-list glass">
-          <div class="legend-title">Tracked Pets ({pets.length})</div>
-          {#each pets as pet}
+          <div class="legend-title">Tracked Pets ({store.pets.length})</div>
+          {#each store.pets as pet}
             <button
               class="pet-list-item"
-              class:selected={selectedPetId === pet.id}
-              onclick={() => selectPet(selectedPetId === pet.id ? null : pet.id)}
+              class:selected={store.selectedPetId === pet.id}
+              onclick={() => selectPet(store.selectedPetId === pet.id ? null : pet.id)}
             >
               <SpeciesBadge species={pet.species} size="sm" />
               <span class="pet-list-name">{pet.name ?? pet.id}</span>

@@ -37,6 +37,8 @@ import {
   loadFloorPlan,
   dismissAlert,
   getPetTrail,
+  setConnectionStatus,
+  getConnectionStatus,
 } from '../src/lib/stores.svelte';
 import type { PetLocation, Alert, Room } from '../src/lib/stores.svelte';
 
@@ -50,7 +52,7 @@ describe('stores', () => {
     // Clear selected pet
     selectPet(null);
     // Reset connection status
-    isConnected.value = false;
+    setConnectionStatus(false);
     // Clear trails
     petTrails.clear();
   });
@@ -247,15 +249,15 @@ describe('stores', () => {
 
   describe('isConnected', () => {
     it('starts as false', () => {
-      expect(isConnected.value).toBe(false);
+      expect(getConnectionStatus()).toBe(false);
     });
 
     it('can be manually toggled', () => {
-      isConnected.value = true;
-      expect(isConnected.value).toBe(true);
+      setConnectionStatus(true);
+      expect(getConnectionStatus()).toBe(true);
 
-      isConnected.value = false;
-      expect(isConnected.value).toBe(false);
+      setConnectionStatus(false);
+      expect(getConnectionStatus()).toBe(false);
     });
   });
 

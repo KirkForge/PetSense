@@ -10,8 +10,8 @@
 
   const MARGIN = { top: 8, right: 8, bottom: 8, left: 8 };
 
-  const chartW = width - MARGIN.left - MARGIN.right;
-  const chartH = height - MARGIN.top - MARGIN.bottom;
+  const chartW = $derived(width - MARGIN.left - MARGIN.right);
+  const chartH = $derived(height - MARGIN.top - MARGIN.bottom);
 
   const points = $derived.by(() => {
     if (data.length === 0) return '';
@@ -38,6 +38,19 @@
   );
 
   const gradientId = $derived('sg-' + color.replace('#', ''));
+
+  const lastPoint = $derived.by(() => {
+    if (data.length === 0) return null;
+    const last = data[data.length - 1];
+    const max = Math.max(...data, 1);
+    const min = Math.min(...data, 0);
+    const range = max - min || 1;
+    const stepX = chartW / Math.max(data.length - 1, 1);
+    return {
+      x: MARGIN.left + (data.length - 1) * stepX,
+      y: MARGIN.top + chartH - ((last - min) / range) * chartH,
+    };
+  });
 </script>
 
 {#if data.length > 0}
@@ -62,16 +75,9 @@
       stroke-linejoin="round"
     />
 
-    <!-- Last point dot -->
-    {#if data.length > 0}
-      {@const last = data[data.length - 1]}
-      {@const max = Math.max(...data, 1)}
-      {@const min = Math.min(...data, 0)}
-      {@const range = max - min || 1}
-      {@const stepX = chartW / Math.max(data.length - 1, 1)}
-      {@const lx = MARGIN.left + (data.length - 1) * stepX}
-      {@const ly = MARGIN.top + chartH - ((last - min) / range) * chartH}
-      <circle cx={lx} cy={ly} r="3" fill={color} stroke="white" stroke-width="1" />
+    {#if lastPoint}
+      <!-- Last point dot -->
+      <circle cx={lastPoint.x} cy={lastPoint.y} r="3" fill={color} stroke="white" stroke-width="1" />
     {/if}
   </svg>
 {:else}

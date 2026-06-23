@@ -1,6 +1,11 @@
 /**
  * Reactive state for DopaFlow PetSense app.
  * Svelte 5 runes: $state, $derived, $effect. No legacy stores.
+ *
+ * All shared state lives in a single exported object so it can be read
+ * reactively from any component while still being reassigned safely from
+ * within this module. Exporting individual $state primitives directly is
+ * forbidden by Svelte 5 when they are reassigned.
  */
 
 import { onPetLocation, onAlert, onConnect } from '$lib/api';
@@ -40,63 +45,83 @@ export interface HealthTrend {
   anomaly: boolean;
 }
 
-// ── State ─────────────────────────────────────────────
+// ── Shared reactive state ───────────────────────────────
 
-export const pets: PetLocation[] = $state([]);
-export const alerts: Alert[] = $state([]);
-export let selectedPetId: string | null = $state(null);
-export let floorPlan: Room[] = $state([]);
-let isConnected = $state(false);
-export function getConnectionStatus(): boolean { return isConnected; }
-export function setConnectionStatus(v: boolean): void { isConnected = v; }
-export const healthTrends: HealthTrend[] = $state([]);
+export const store = $state({
+  pets: [] as PetLocation[],
+  alerts: [] as Alert[],
+  selectedPetId: null as string | null,
+  floorPlan: [] as Room[],
+  isConnected: false,
+  healthTrends: [] as HealthTrend[],
+  petTrails: new Map<string, { x: number; y: number }[]>(),
+});
 
-// Track pet trails (last 20 positions per pet)
-export const petTrails: Map<string, { x: number; y: number }[]> = new Map();
+// Backward-compatible named exports for tests and any existing consumers
+// that read the shared state directly. Mutating these proxies updates the
+// underlying `store` reactively. Reassigning them is not allowed (they are
+// `const`), which matches Svelte 5's rules for exported module state.
+export const pets = store.pets;
+export const alerts = store.alerts;
+export const selectedPetId = store.selectedPetId;
+export const floorPlan = store.floorPlan;
+export const isConnected = store.isConnected;
+export const healthTrends = store.healthTrends;
+export const petTrails = store.petTrails;
 
 // ── Functions ─────────────────────────────────────────
 
 export function selectPet(id: string | null): void {
-  selectedPetId = id;
+  store.selectedPetId = id;
 }
 
 export function addAlert(alert: Alert): void {
-  alerts.unshift(alert);
-  if (alerts.length > 100) alerts.pop();
+  store.alerts.unshift(alert);
+  if (store.alerts.length > 100) store.alerts.pop();
 }
 
 export function updatePetLocation(location: PetLocation): void {
-  const idx = pets.findIndex((p) => p.id === location.id);
+  const idx = store.pets.findIndex((p) => p.id === location.id);
   if (idx >= 0) {
-    pets = [...pets.slice(0, idx), { ...pets[idx], ...location }, ...pets.slice(idx + 1)];
+    store.pets[idx] = { ...store.pets[idx], ...location };
   } else {
-    pets = [...pets, location];
+    store.pets.push(location);
   }
 
   // Update trail
-  if (!petTrails.has(location.id)) {
-    petTrails.set(location.id, []);
+  if (!store.petTrails.has(location.id)) {
+    store.petTrails.set(location.id, []);
   }
-  const trail = petTrails.get(location.id)!;
+  const trail = store.petTrails.get(location.id)!;
   trail.push({ x: location.position.x, y: location.position.y });
   if (trail.length > 20) trail.shift();
 }
 
 export function loadFloorPlan(rooms: Room[]): void {
-  floorPlan = rooms;
+  store.floorPlan = rooms;
 }
 
 export function dismissAlert(id: string): void {
-  const idx = alerts.findIndex((a) => a.id === id);
-  if (idx >= 0) alerts.splice(idx, 1);
+  const idx = store.alerts.findIndex((a) => a.id === id);
+  if (idx >= 0) store.alerts.splice(idx, 1);
 }
 
 export function getPetTrail(id: string): { x: number; y: number }[] {
-  return petTrails.get(id) ?? [];
+  return store.petTrails.get(id) ?? [];
+}
+
+export function getConnectionStatus(): boolean {
+  return store.isConnected;
+}
+
+export function setConnectionStatus(v: boolean): void {
+  store.isConnected = v;
 }
 
 // ── Wire up API listeners ────────────────────────────
 
 onPetLocation((pet) => updatePetLocation(pet));
 onAlert((a) => addAlert(a));
-onConnect((connected) => { isConnected = connected; });
+onConnect((connected) => {
+  store.isConnected = connected;
+});

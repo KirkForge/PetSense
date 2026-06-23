@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { pets, healthTrends, selectPet, selectedPetId, HealthTrend } from '$lib/stores.svelte';
+  import { store, selectPet, type HealthTrend } from '$lib/stores.svelte';
   import SpeciesBadge from '../components/SpeciesBadge.svelte';
   import ActivitySparkline from '../components/ActivitySparkline.svelte';
 
@@ -17,7 +17,7 @@
   }
 
   const healthData: PetHealth[] = $derived(
-    pets.map((pet, i) => {
+    store.pets.map((pet, i) => {
       const today = 30 + Math.floor(Math.random() * 40);
       const prev = 48 + Math.floor(Math.random() * 20);
       const avg = today + Math.floor(Math.random() * 15);
@@ -36,7 +36,7 @@
     })
   );
 
-  let activePetId = $derived(selectedPetId ?? (pets.length > 0 ? pets[0].id : null));
+  let activePetId = $derived(store.selectedPetId ?? (store.pets.length > 0 ? store.pets[0].id : null));
   let activeHealth = $derived(healthData.find((h) => h.petId === activePetId) ?? null);
 
   function weekBarColor(minutes: number): string {
@@ -47,7 +47,7 @@
 </script>
 
 <div class="health-view">
-  {#if pets.length === 0}
+  {#if store.pets.length === 0}
     <div class="empty-state">
       <div class="empty-icon">💊</div>
       <div class="empty-title">No pets tracked</div>
@@ -56,7 +56,7 @@
   {:else}
     <!-- Pet Selector -->
     <div class="pet-selector glass">
-      {#each pets as pet}
+      {#each store.pets as pet}
         <button
           class="chip"
           class:active={activePetId === pet.id}
@@ -163,7 +163,7 @@
   .anomaly-card {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-4);
+    gap: var(--space-5);
     padding: var(--space-5);
     border-color: rgba(251, 191, 36, 0.3);
     background: rgba(251, 191, 36, 0.06);

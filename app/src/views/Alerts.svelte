@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { alerts, floorPlan, dismissAlert, isConnected } from '$lib/stores.svelte';
+  import { store, dismissAlert } from '$lib/stores.svelte';
 
   interface Zone {
     id: string;
@@ -15,7 +15,7 @@
   let newZoneRoom = $state('');
   let newZoneAlertType: 'push' | 'visual' = $state('visual');
 
-  const roomNames = $derived(floorPlan.map((r) => r.name));
+  const roomNames = $derived(store.floorPlan.map((r) => r.name));
 
   function addZone() {
     if (!newZoneName.trim() || !newZoneRoom) return;
@@ -120,10 +120,10 @@
   <div class="section glass">
     <div class="section-header">
       <h3>Alert History</h3>
-      <span class="count-badge">{alerts.length}</span>
+      <span class="count-badge">{store.alerts.length}</span>
     </div>
 
-    {#if alerts.length === 0}
+    {#if store.alerts.length === 0}
       <div class="empty-state" style="padding: var(--space-6);">
         <div class="empty-icon">🔔</div>
         <div class="empty-title">No alerts yet</div>
@@ -131,7 +131,7 @@
       </div>
     {:else}
       <div class="alert-list">
-        {#each alerts as alert (alert.id)}
+        {#each store.alerts as alert (alert.id)}
           <div class="alert-row glass">
             <div class="alert-icon">🔔</div>
             <div class="alert-body">

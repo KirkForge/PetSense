@@ -15,55 +15,72 @@
   const VIEW = { w: 600, h: 400 };
   const MARGIN = 20;
 
-  /** Map coordinate to SVG point */
-  function mapPos(pos: { x: number; y: number }): { x: number; y: number } {
-    const xRange = rooms.length > 0
-      ? Math.max(...rooms.map((r) => r.bounds.x2)) - Math.min(...rooms.map((r) => r.bounds.x1))
-      : 500;
-    const yRange = rooms.length > 0
-      ? Math.max(...rooms.map((r) => r.bounds.y2)) - Math.min(...rooms.map((r) => r.bounds.y1))
-      : 500;
-    const xMin = rooms.length > 0 ? Math.min(...rooms.map((r) => r.bounds.x1)) : 0;
-    const yMin = rooms.length > 0 ? Math.min(...rooms.map((r) => r.bounds.y1)) : 0;
-
-    const sx = MARGIN + ((pos.x - xMin) / xRange) * (VIEW.w - 2 * MARGIN);
-    const sy = MARGIN + ((pos.y - yMin) / yRange) * (VIEW.h - 2 * MARGIN);
-    return { x: sx ?? VIEW.w / 2, y: sy ?? VIEW.h / 2 };
-  }
-
   /** Room colors palette */
   const roomPalette = [
     '#ff8c4222', '#42d4ff22', '#4ade8022', '#fbbf2422',
     '#f472b622', '#a78bfa22', '#f8717122', '#60a5fa22',
   ];
 
-  function roomFill(i: number): string {
-    return rooms[i]?.color ?? roomPalette[i % roomPalette.length];
+  /** Map coordinate to SVG point — pure function, no reactive reads */
+  function mapPos(pos: { x: number; y: number }, xMin: number, yMin: number, xRange: number, yRange: number): { x: number; y: number } {
+    const sx = MARGIN + ((pos.x - xMin) / (xRange || 500)) * (VIEW.w - 2 * MARGIN);
+    const sy = MARGIN + ((pos.y - yMin) / (yRange || 500)) * (VIEW.h - 2 * MARGIN);
+    return { x: sx ?? VIEW.w / 2, y: sy ?? VIEW.h / 2 };
   }
 
-  function roomStroke(i: number): string {
-    const fill = roomFill(i);
-    return fill.slice(0, 7) + '55';
-  }
-
-  /** Species-based color */
+  /** Species-based color — pure function */
   function petColor(species: 'dog' | 'cat'): string {
     return species === 'dog' ? '#ff8c42' : '#42d4ff';
-  }
-
-  /** Trail polyline points string */
-  function trailPoints(petId: string): string {
-    const trail = getPetTrail(petId);
-    if (trail.length < 2) return '';
-    return trail.map((p) => {
-      const m = mapPos(p);
-      return `${m.x},${m.y}`;
-    }).join(' ');
   }
 
   function handleDotClick(petId: string) {
     onselectpet?.(new CustomEvent('selectpet', { detail: petId }));
   }
+
+  // ── Derived coordinate system ──────────────────────────
+
+  const coordBounds = $derived.by(() => {
+    if (rooms.length === 0) return { xMin: 0, yMin: 0, xRange: 500, yRange: 500 };
+    const xs = rooms.map((r) => [r.bounds.x1, r.bounds.x2]).flat();
+    const ys = rooms.map((r) => [r.bounds.y1, r.bounds.y2]).flat();
+    return {
+      xMin: Math.min(...xs),
+      yMin: Math.min(...ys),
+      xRange: Math.max(...xs) - Math.min(...xs),
+      yRange: Math.max(...ys) - Math.min(...ys),
+    };
+  });
+
+  // ── Derived room data with pre-computed positions ─────
+
+  const roomData = $derived.by(() => {
+    const { xMin, yMin, xRange, yRange } = coordBounds;
+    return rooms.map((room, i) => {
+      const tl = mapPos({ x: room.bounds.x1, y: room.bounds.y1 }, xMin, yMin, xRange, yRange);
+      const br = mapPos({ x: room.bounds.x2, y: room.bounds.y2 }, xMin, yMin, xRange, yRange);
+      const fill = room.color ?? roomPalette[i % roomPalette.length];
+      const stroke = fill.slice(0, 7) + '55';
+      return { ...room, tl, br, fill, stroke };
+    });
+  });
+
+  // ── Derived pet data with pre-computed positions ───────
+
+  const petData = $derived.by(() => {
+    const { xMin, yMin, xRange, yRange } = coordBounds;
+    return pets.map((pet) => {
+      const pos = mapPos(pet.position, xMin, yMin, xRange, yRange);
+      const color = petColor(pet.species);
+      const trail = getPetTrail(pet.id);
+      const pts = trail.length >= 2
+        ? trail.map((p) => {
+            const m = mapPos(p, xMin, yMin, xRange, yRange);
+            return `${m.x},${m.y}`;
+          }).join(' ')
+        : '';
+      return { ...pet, pos, color, pts };
+    });
+  });
 
   /** Grid lines */
   const gridLines = $derived.by(() => {
@@ -81,7 +98,7 @@
   });
 
   /** Check for missing room layout */
-  const hasRooms = rooms.length > 0;
+  const hasRooms = $derived(rooms.length > 0);
 </script>
 
 <svg
@@ -104,21 +121,19 @@
 
   {#if hasRooms}
     <!-- Room rectangles -->
-    {#each rooms as room, i}
-      {@const tl = mapPos({ x: room.bounds.x1, y: room.bounds.y1 })}
-      {@const br = mapPos({ x: room.bounds.x2, y: room.bounds.y2 })}
+    {#each roomData as room}
       <rect
-        x={tl.x} y={tl.y}
-        width={br.x - tl.x} height={br.y - tl.y}
-        fill={roomFill(i)}
-        stroke={roomStroke(i)}
+        x={room.tl.x} y={room.tl.y}
+        width={room.br.x - room.tl.x} height={room.br.y - room.tl.y}
+        fill={room.fill}
+        stroke={room.stroke}
         stroke-width="1.5"
         rx="4"
       />
       <!-- Room label -->
       <text
-        x={tl.x + (br.x - tl.x) / 2}
-        y={tl.y + (br.y - tl.y) / 2}
+        x={room.tl.x + (room.br.x - room.tl.x) / 2}
+        y={room.tl.y + (room.br.y - room.tl.y) / 2}
         text-anchor="middle"
         dominant-baseline="central"
         fill="rgba(255,255,255,0.25)"
@@ -128,13 +143,12 @@
     {/each}
 
     <!-- Pet movement trails -->
-    {#each pets as pet}
-      {@const pts = trailPoints(pet.id)}
-      {#if pts}
+    {#each petData as pet}
+      {#if pet.pts}
         <polyline
-          points={pts}
+          points={pet.pts}
           fill="none"
-          stroke={petColor(pet.species)}
+          stroke={pet.color}
           stroke-width="1.5"
           stroke-dasharray="4 4"
           opacity="0.35"
@@ -143,14 +157,12 @@
     {/each}
 
     <!-- Pet position dots -->
-    {#each pets as pet}
-      {@const pos = mapPos(pet.position)}
+    {#each petData as pet}
       {@const isSelected = selectedPetId === pet.id}
-      {@const color = petColor(pet.species)}
 
       <!-- Ping ring for selected pet -->
       {#if isSelected}
-        <circle cx={pos.x} cy={pos.y} r="14" fill="none" stroke={color} stroke-width="2" opacity="0.4">
+        <circle cx={pet.pos.x} cy={pet.pos.y} r="14" fill="none" stroke={pet.color} stroke-width="2" opacity="0.4">
           <animate attributeName="r" from="8" to="22" dur="1.2s" repeatCount="indefinite" />
           <animate attributeName="opacity" from="0.6" to="0" dur="1.2s" repeatCount="indefinite" />
         </circle>
@@ -158,22 +170,31 @@
 
       <!-- Pet dot -->
       <circle
-        cx={pos.x} cy={pos.y} r="7"
-        fill={color}
+        cx={pet.pos.x} cy={pet.pos.y} r="7"
+        fill={pet.color}
         stroke={isSelected ? 'white' : 'none'}
         stroke-width={isSelected ? 2 : 0}
         opacity={isSelected ? 1 : 0.85}
         style="cursor:pointer;"
+        role="button"
+        tabindex="0"
+        aria-label={`Select pet ${pet.name ?? pet.id}`}
         onclick={() => handleDotClick(pet.id)}
+        onkeydown={(e: KeyboardEvent) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleDotClick(pet.id);
+          }
+        }}
       >
         <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite" />
       </circle>
 
       <!-- Pet name label -->
       <text
-        x={pos.x} y={pos.y - 14}
+        x={pet.pos.x} y={pet.pos.y - 14}
         text-anchor="middle"
-        fill={color}
+        fill={pet.color}
         font-size="10"
         font-weight="600"
         font-family="var(--font-sans)"

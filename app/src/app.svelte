@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { pets, alerts, isConnected } from '$lib/stores.svelte';
+  import { store } from '$lib/stores.svelte';
   import LiveMap from './views/LiveMap.svelte';
   import Timeline from './views/Timeline.svelte';
   import Alerts from './views/Alerts.svelte';
@@ -11,7 +11,7 @@
   let activeTab: Tab = $state('Map');
 
   function statusLabel(): string {
-    if (isConnected.value) return 'Connected';
+    if (store.isConnected) return 'Connected';
     return 'Disconnected';
   }
 </script>
@@ -39,8 +39,8 @@
     <div class="nav-status" title={statusLabel()}>
       <span
         class="dot"
-        class:connected={isConnected.value}
-        class:disconnected={!isConnected.value}
+        class:connected={store.isConnected}
+        class:disconnected={!store.isConnected}
       ></span>
       <span class="status-text">{statusLabel()}</span>
     </div>
