@@ -18,6 +18,18 @@ logs/
 # Build
 dist/
 build/
+.svelte-kit/
+.pio/
+
+# LLM tooling (never committed)
+.claude/
+CLAUDE.md
+AGENTS.md
+state.md
+STATE.md
+deepseek.md
+REPORULES.md
+summary.md
 
 # Type checking
 .mypy_cache/

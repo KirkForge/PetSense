@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  app:
+    name: App (Svelte/TS)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+      - run: npm install
+      - run: npm run build
+      - run: npm test
+
+  edge-hub:
+    name: Edge Hub (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install -r edge-hub/requirements.txt 2>/dev/null || pip install numpy scipy onnxruntime pydantic fastapi uvicorn
+      - name: Syntax check
+        run: find edge-hub/src -name "*.py" -exec python3 -m py_compile {} +
