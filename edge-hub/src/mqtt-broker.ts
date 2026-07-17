@@ -2,9 +2,13 @@ import aedesFactory from 'aedes';
 import { createServer } from 'node:net';
 import { createServer as createHttpServer } from 'node:http';
 import { EventEmitter } from 'node:events';
-import type { Aedes } from 'aedes';
+import { WebSocket, WebSocketServer, createWebSocketStream } from 'ws';
 import type { Server as NetServer } from 'node:net';
 import type { Server as HttpServer } from 'node:http';
+
+// ponytail: aedes's default export is the Aedes class constructor (no named
+// `Aedes` type export); derive the instance type from it and construct with new.
+type Aedes = InstanceType<typeof aedesFactory>;
 
 export const CSI_TOPIC = 'csi/+/+';
 export const EVENT_TOPIC = 'events/+';
@@ -25,12 +29,15 @@ export class MQTTBroker extends EventEmitter {
 
   constructor() {
     super();
-    this.aedes = aedesFactory();
+    this.aedes = new aedesFactory();
     this.setupHandler();
   }
 
   private setupHandler(): void {
-    this.aedes.on('publish', (packet, client) => {
+    // ponytail: aedes's typed event map omits 'publish' (only clientError/
+    // connectionError are declared) though aedes emits it; cast to the EventEmitter
+    // base to use the generic string listener. Params typed to the fields used.
+    (this.aedes as EventEmitter).on('publish', (packet: { topic: string; payload: Buffer }, client: unknown) => {
       if (!client || !packet.topic.startsWith('csi/')) return;
       try {
         const topicParts = packet.topic.split('/');
@@ -61,7 +68,14 @@ export class MQTTBroker extends EventEmitter {
     });
 
     const http = createHttpServer();
-    this.aedes.attachHttpServer(http);
+    // ponytail: aedes 0.50 has no attachHttpServer; bridge WS→MQTT via ws's
+    // createWebSocketStream + aedes.handle (the documented aedes-over-WS pattern).
+    const wss = new WebSocketServer({ server: http });
+    wss.on('connection', (ws: WebSocket) => {
+      const stream = createWebSocketStream(ws);
+      this.aedes.handle(stream as never);
+      stream.on('error', () => { /* client dropped */ });
+    });
     this.wsServer = http;
     http.listen(wsPort, () => {
       console.log(`[mqtt] WebSocket broker on :${wsPort}`);

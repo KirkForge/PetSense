@@ -56,6 +56,9 @@ token_*.json
 *.pickle
 client_secret*.json
 credentials.json
+# ponytail: firmware secrets are user-filled per-node. Track only the .template;
+# the real secrets.h is untracked here and gitignored so a careless add can't ship it.
+firmware/src/secrets.h
 *.db-shm
 *.db-wal
 *.sqlite

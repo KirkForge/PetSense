@@ -125,10 +125,13 @@ describe('Health', () => {
     it('renders 7 day cells with weekday labels', () => {
       pets.push(...samplePets);
 
-      const { getByText } = render(Health);
-      expect(getByText('M')).toBeInTheDocument();
-      expect(getByText('T')).toBeInTheDocument();
-      expect(getByText('S')).toBeInTheDocument();
+      const { container, getAllByText } = render(Health);
+      // 7 weekday-initial labels render; 'T' (Tue/Thu) and 'S' (Sat/Sun) each
+      // appear twice in the ['M','T','W','T','F','S','S'] label set, so use
+      // getAllByText for those and assert the heatmap-label count.
+      expect(getAllByText('T').length).toBe(2);
+      expect(getAllByText('S').length).toBe(2);
+      expect(container.querySelectorAll('.heatmap-label').length).toBe(7);
     });
   });
 

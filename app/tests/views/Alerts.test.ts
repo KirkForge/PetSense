@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import Alerts from '../../src/views/Alerts.svelte';
 import { alerts, floorPlan, dismissAlert } from '../../src/lib/stores.svelte';
 import type { Alert, Room } from '../../src/lib/stores.svelte';
@@ -34,51 +35,56 @@ describe('Alerts', () => {
   });
 
   describe('add zone form', () => {
-    it('shows add zone form when add button is clicked', () => {
+    it('shows add zone form when add button is clicked', async () => {
       floorPlan.push(...sampleRooms);
 
       const { getByText, container, getByPlaceholderText } = render(Alerts);
 
       getByText('+ Add Zone').click();
+      await tick();
 
       expect(getByPlaceholderText('Zone name (e.g. No-go Kitchen)')).toBeInTheDocument();
       expect(container.querySelector('select')).toBeInTheDocument();
       expect(getByText('Save Zone')).toBeInTheDocument();
     });
 
-    it('Save Zone button is disabled when form is empty', () => {
+    it('Save Zone button is disabled when form is empty', async () => {
       floorPlan.push(...sampleRooms);
 
       const { getByText, getByPlaceholderText } = render(Alerts);
 
       getByText('+ Add Zone').click();
+      await tick();
 
       const saveBtn = getByText('Save Zone') as HTMLButtonElement;
       expect(saveBtn.disabled).toBe(true);
     });
 
-    it('toggles the add zone form with Cancel button', () => {
+    it('toggles the add zone form with Cancel button', async () => {
       floorPlan.push(...sampleRooms);
 
       const { getByText, queryByText } = render(Alerts);
 
       // Open form
       getByText('+ Add Zone').click();
+      await tick();
       expect(getByText('Cancel')).toBeInTheDocument();
       expect(getByText('Save Zone')).toBeInTheDocument();
 
       // Close form
       getByText('Cancel').click();
+      await tick();
       expect(getByText('+ Add Zone')).toBeInTheDocument();
       expect(queryByText('Save Zone')).not.toBeInTheDocument();
     });
 
-    it('hides empty state when add zone form is shown', () => {
+    it('hides empty state when add zone form is shown', async () => {
       floorPlan.push(...sampleRooms);
 
       const { getByText, queryByText } = render(Alerts);
 
       getByText('+ Add Zone').click();
+      await tick();
 
       expect(queryByText('No zones configured')).not.toBeInTheDocument();
     });

@@ -34,7 +34,11 @@ async function main(): Promise<void> {
 
   aggregator.onFrame(async (frame: AggregatedFrame) => {
     try {
-      const features = extractFeatures(frame.combinedVector);
+      // ponytail: combinedVector is a single flat Float32Array; extractFeatures
+      // expects a window of frames (Float32Array[]). Wrap as one-frame window so
+      // the deferred pipeline type-checks. Real rolling-window wiring is deferred
+      // (hub does not run today — loadModel throws with no model).
+      const features = extractFeatures([frame.combinedVector]);
       const result = await engine.classify(features);
       if (result.presence) {
         tracker.update(result.species || 'unknown', { x: 0, y: 0 }); // position from multilateration

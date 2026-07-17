@@ -8,6 +8,10 @@ export default defineConfig({
     alias: {
       $lib: path.resolve(__dirname, 'src/lib'),
     },
+    // ponytail: Svelte 5 client build (mount) in jsdom — without this vitest
+    // resolves svelte's server build, where mount() throws
+    // lifecycle_function_unavailable, failing every component test.
+    conditions: ['browser'],
   },
   test: {
     include: ['tests/**/*.test.ts'],

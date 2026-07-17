@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/svelte';
+import { render, cleanup, within } from '@testing-library/svelte';
+import { tick } from 'svelte';
 import LiveMap from '../../src/views/LiveMap.svelte';
 import { pets, floorPlan, selectedPetId, selectPet } from '../../src/lib/stores.svelte';
 import type { Room, PetLocation } from '../../src/lib/stores.svelte';
@@ -66,9 +67,13 @@ describe('LiveMap', () => {
       floorPlan.push(...sampleRooms);
       pets.push(...samplePets);
 
-      const { getByText } = render(LiveMap);
-      expect(getByText('Living Room')).toBeInTheDocument();
-      expect(getByText('Kitchen')).toBeInTheDocument();
+      const { container } = render(LiveMap);
+      // 'Living Room' / 'Kitchen' each appear both as the SVG floor-plan label
+      // and as a pet-list room span, so scope to the floor-plan container.
+      const mapContainer = container.querySelector('.map-container') as HTMLElement;
+      const mapScope = within(mapContainer);
+      expect(mapScope.getByText('Living Room')).toBeInTheDocument();
+      expect(mapScope.getByText('Kitchen')).toBeInTheDocument();
     });
 
     it('shows legend with Dog and Cat indicators', () => {
@@ -110,20 +115,33 @@ describe('LiveMap', () => {
       pets.push(...samplePets);
       selectPet('pet-1');
 
-      const { getByText } = render(LiveMap);
-      expect(getByText('Rex')).toBeInTheDocument();
-      expect(getByText('walking')).toBeInTheDocument();
-      expect(getByText('Living Room')).toBeInTheDocument();
+      const { container } = render(LiveMap);
+      // 'Rex' / 'Living Room' also appear in the pet list, so scope to the
+      // selected-pet info card to assert the card content.
+      const infoCard = container.querySelector('.pet-info') as HTMLElement;
+      const cardScope = within(infoCard);
+      expect(cardScope.getByText('Rex')).toBeInTheDocument();
+      expect(cardScope.getByText('walking')).toBeInTheDocument();
+      expect(cardScope.getByText('Living Room')).toBeInTheDocument();
     });
 
-    it('selecting the same pet again deselects it', () => {
+    it('selecting the same pet again deselects it', async () => {
       floorPlan.push(...sampleRooms);
       pets.push(...samplePets);
       selectPet('pet-1');
 
-      const { getByText } = render(LiveMap);
-      // Click pet list button to deselect
-      expect(getByText('Rex')).toBeInTheDocument();
+      const { container, getByText } = render(LiveMap);
+      // Info card is shown initially
+      expect(container.querySelector('.pet-info .info-name')).toBeInTheDocument();
+
+      // Click the same pet's list button to deselect. 'Rex' appears in both
+      // the info card and the pet-list button, so target the pet-list button.
+      const petListButton = container.querySelector('.pet-list-item') as HTMLButtonElement;
+      petListButton.click();
+      await tick();
+
+      // Info card replaced by the "Click a pet" hint
+      expect(getByText('Click a pet to see details')).toBeInTheDocument();
     });
 
     it('renders legend dots with correct species colors', () => {

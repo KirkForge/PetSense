@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
           cache-dependency-path: app/package-lock.json
       - run: npm install
@@ -25,14 +25,19 @@ jobs:
       - run: npm test
 
   edge-hub:
-    name: Edge Hub (Python)
+    name: Edge Hub (TypeScript)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: edge-hub
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.11"
+          node-version: "24"
+      # ponytail: no npm cache — edge-hub has no package-lock.json yet (gap #6),
+      # so a cache-dependency-path would be a dead key. Add when lockfile lands.
       - name: Install deps
-        run: pip install -r edge-hub/requirements.txt 2>/dev/null || pip install numpy scipy onnxruntime pydantic fastapi uvicorn
-      - name: Syntax check
-        run: find edge-hub/src -name "*.py" -exec python3 -m py_compile {} +
+        run: npm install
+      - name: Type-check (tsc --noEmit)
+        run: npx tsc --noEmit

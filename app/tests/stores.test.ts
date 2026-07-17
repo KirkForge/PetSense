@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // We need to mock $lib/api BEFORE importing stores, because stores
 // calls onPetLocation/onAlert/onConnect at module load time.
@@ -25,6 +25,7 @@ vi.mock('$lib/api', () => apiMocks);
 
 // Now import stores
 import {
+  store,
   pets,
   alerts,
   selectedPetId,
@@ -40,6 +41,10 @@ import {
   setConnectionStatus,
   getConnectionStatus,
 } from '../src/lib/stores.svelte';
+// ponytail: `selectedPetId` / `floorPlan` named exports are snapshots taken at
+// module load and do NOT reflect later reassignment of `store.selectedPetId` /
+// `store.floorPlan`. Components read `store.X` directly so they are unaffected,
+// but tests must read the source-of-truth `store.X` for these two fields.
 import type { PetLocation, Alert, Room } from '../src/lib/stores.svelte';
 
 describe('stores', () => {
@@ -130,28 +135,28 @@ describe('stores', () => {
 
   describe('selectedPetId', () => {
     it('starts as null', () => {
-      expect(selectedPetId).toBeNull();
+      expect(store.selectedPetId).toBeNull();
     });
 
     it('selectPet sets the selected pet ID', () => {
       selectPet('pet-1');
-      expect(selectedPetId).toBe('pet-1');
+      expect(store.selectedPetId).toBe('pet-1');
     });
 
     it('selectPet with null clears selection', () => {
       selectPet('pet-1');
-      expect(selectedPetId).toBe('pet-1');
+      expect(store.selectedPetId).toBe('pet-1');
 
       selectPet(null);
-      expect(selectedPetId).toBeNull();
+      expect(store.selectedPetId).toBeNull();
     });
 
     it('selectPet toggles between pets', () => {
       selectPet('pet-a');
-      expect(selectedPetId).toBe('pet-a');
+      expect(store.selectedPetId).toBe('pet-a');
 
       selectPet('pet-b');
-      expect(selectedPetId).toBe('pet-b');
+      expect(store.selectedPetId).toBe('pet-b');
     });
   });
 
@@ -218,7 +223,7 @@ describe('stores', () => {
 
   describe('floorPlan', () => {
     it('starts as empty array', () => {
-      expect(floorPlan.length).toBe(0);
+      expect(store.floorPlan.length).toBe(0);
     });
 
     it('loadFloorPlan sets rooms', () => {
@@ -228,9 +233,9 @@ describe('stores', () => {
       ];
 
       loadFloorPlan(rooms);
-      expect(floorPlan.length).toBe(2);
-      expect(floorPlan[0].name).toBe('Living');
-      expect(floorPlan[1].name).toBe('Kitchen');
+      expect(store.floorPlan.length).toBe(2);
+      expect(store.floorPlan[0].name).toBe('Living');
+      expect(store.floorPlan[1].name).toBe('Kitchen');
     });
 
     it('loadFloorPlan replaces existing rooms', () => {
@@ -238,12 +243,12 @@ describe('stores', () => {
       const r2: Room[] = [{ name: 'R2', bounds: { x1: 0, y1: 0, x2: 1, y2: 1 } }];
 
       loadFloorPlan(r1);
-      expect(floorPlan.length).toBe(1);
-      expect(floorPlan[0].name).toBe('R1');
+      expect(store.floorPlan.length).toBe(1);
+      expect(store.floorPlan[0].name).toBe('R1');
 
       loadFloorPlan(r2);
-      expect(floorPlan.length).toBe(1);
-      expect(floorPlan[0].name).toBe('R2');
+      expect(store.floorPlan.length).toBe(1);
+      expect(store.floorPlan[0].name).toBe('R2');
     });
   });
 

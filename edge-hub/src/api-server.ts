@@ -51,9 +51,15 @@ export class APIServer {
     } else if (req.method === 'GET' && url.pathname === '/api/events') {
       this.handleEvents(res);
     } else if (req.method === 'POST' && url.pathname === '/api/zones') {
-      this.readBody(req).then(body => this.handleZoneUpsert(body, res));
+      this.readBody(req).then(
+        body => this.handleZoneUpsert(body, res),
+        () => this.tooLarge(res),
+      );
     } else if (req.method === 'DELETE' && url.pathname === '/api/zones') {
-      this.readBody(req).then(body => this.handleZoneDelete(body, res));
+      this.readBody(req).then(
+        body => this.handleZoneDelete(body, res),
+        () => this.tooLarge(res),
+      );
     } else if (req.method === 'GET' && url.pathname === '/api/zones') {
       this.handleZoneList(res);
     } else {
@@ -85,8 +91,18 @@ export class APIServer {
 
   private handleZoneUpsert(body: string, res: ServerResponse): void {
     try {
-      const zone = JSON.parse(body) as { id: string; name: string; bounds: string; type: string };
-      this.ctx.db.upsertZone(zone);
+      const zone = JSON.parse(body) as { id: unknown; name: unknown; bounds: unknown; type: unknown };
+      // ponytail: trust-boundary validation — JSON.parse `as` is a cast, not a check,
+      // so verify each field is a non-empty string before it reaches db.upsertZone.
+      if (typeof zone.id !== 'string' || typeof zone.name !== 'string' ||
+          typeof zone.bounds !== 'string' || typeof zone.type !== 'string' ||
+          zone.id.length === 0 || zone.name.length === 0) {
+        res.writeHead(400).end(JSON.stringify({
+          error: 'invalid zone: id, name, bounds, type must be non-empty strings',
+        }));
+        return;
+      }
+      this.ctx.db.upsertZone({ id: zone.id, name: zone.name, bounds: zone.bounds, type: zone.type });
       res.writeHead(200).end(JSON.stringify({ ok: true }));
     } catch {
       res.writeHead(400).end(JSON.stringify({ error: 'invalid body' }));
@@ -95,7 +111,11 @@ export class APIServer {
 
   private handleZoneDelete(body: string, res: ServerResponse): void {
     try {
-      const { id } = JSON.parse(body) as { id: string };
+      const { id } = JSON.parse(body) as { id: unknown };
+      if (typeof id !== 'string' || id.length === 0) {
+        res.writeHead(400).end(JSON.stringify({ error: 'invalid zone: id must be a non-empty string' }));
+        return;
+      }
       this.ctx.db.deleteZone(id);
       res.writeHead(200).end(JSON.stringify({ ok: true }));
     } catch {
@@ -108,11 +128,21 @@ export class APIServer {
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ zones }));
   }
 
-  private readBody(req: IncomingMessage): Promise<string> {
-    return new Promise((resolve) => {
+  private tooLarge(res: ServerResponse): void {
+    res.writeHead(413, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'body too large' }));
+  }
+
+  // ponytail: 1 MiB body cap at the trust boundary — without this readBody
+  // accumulates unbounded, a trivial memory-exhaustion vector on the hub.
+  private readBody(req: IncomingMessage, maxBytes = 1024 * 1024): Promise<string> {
+    return new Promise((resolve, reject) => {
       let body = '';
-      req.on('data', chunk => { body += chunk; });
+      req.on('data', chunk => {
+        body += chunk;
+        if (body.length > maxBytes) { req.destroy(); reject(new Error('payload too large')); }
+      });
       req.on('end', () => resolve(body));
+      req.on('error', reject);
     });
   }
 }
