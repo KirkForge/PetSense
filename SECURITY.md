@@ -45,16 +45,25 @@ covered by current code):
    is brought online.
 
 ## What is in place
-- `firmware/src/secrets.h` is gitignored; copy `firmware/src/secrets.h.template`
-  and fill in real WiFi/MQTT values. The template (placeholders only) is the
-  tracked source; the real file is never committed.
-- The app ships a Content-Security-Policy meta tag in `app/index.html`.
-- The edge-hub TypeScript is type-checked by CI (`tsc --noEmit`) on every push.
-- Hub request bodies are capped at 1 MiB; `readBody` in `api-server.ts`
-  destroys the stream and returns `413` on overflow.
+Every claim below cites the file and line that implements it.
+
+- `firmware/src/secrets.h` is gitignored (`.gitignore:61`) and is not tracked
+  (`git ls-files firmware/src/secrets.h` returns nothing). The tracked source is
+  `firmware/src/secrets.h.template` (`firmware/src/secrets.h.template:1`), which
+  contains placeholders only. History was audited with `git log -p --follow
+  firmware/src/secrets.h` and never contained real credentials, so there is no
+  credential leak to rotate and no history scrub required.
+- The app ships a Content-Security-Policy meta tag in `app/index.html:8`
+  (`default-src 'self'; connect-src 'self' ws: wss:; …`).
+- The edge-hub TypeScript is type-checked by CI (`npx tsc --noEmit`) on every
+  push (`.github/workflows/ci.yml:31-38`).
+- Hub request bodies are capped at 1 MiB; `readBody` in
+  `edge-hub/src/api-server.ts:137-143` destroys the stream and returns `413` on
+  overflow.
 - `POST /api/zones` validates that `id`, `name`, `bounds`, `type` are non-empty
-  strings (`400` on violation) before reaching `db.upsertZone`; `DELETE` validates
-  `id` the same way.
+  strings (`400` on violation) in `edge-hub/src/api-server.ts:97-104` before
+  reaching `db.upsertZone`; `DELETE /api/zones` validates `id` the same way in
+  `:115-118`.
 
 ## Hardening checklist for exposed deployments
 - [ ] Wire MQTT broker authentication (`aedes.authenticate`).
