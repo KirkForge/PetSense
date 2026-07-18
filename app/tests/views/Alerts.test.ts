@@ -1,15 +1,37 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import Alerts from '../../src/views/Alerts.svelte';
-import { alerts, floorPlan, dismissAlert } from '../../src/lib/stores.svelte';
+import {
+  store,
+  pets,
+  alerts,
+  floorPlan,
+  petTrails,
+  selectPet,
+  setConnectionStatus,
+  dismissAlert,
+} from '../../src/lib/stores.svelte';
 import type { Alert, Room } from '../../src/lib/stores.svelte';
 
 describe('Alerts', () => {
-  afterEach(() => {
-    cleanup();
+  // ponytail: comprehensive reset prevents cross-file state leakage when vitest
+  // runs test files concurrently — a stale `store` from another file can cause
+  // intermittent rendering differences.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T00:00:00Z'));
+    pets.splice(0, pets.length);
     alerts.splice(0, alerts.length);
     floorPlan.splice(0, floorPlan.length);
+    selectPet(null);
+    setConnectionStatus(false);
+    petTrails.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
   });
 
   const sampleRooms: Room[] = [

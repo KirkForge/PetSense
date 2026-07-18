@@ -1,14 +1,35 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import Timeline from '../../src/views/Timeline.svelte';
-import { pets } from '../../src/lib/stores.svelte';
+import {
+  store,
+  pets,
+  alerts,
+  floorPlan,
+  petTrails,
+  selectPet,
+  setConnectionStatus,
+} from '../../src/lib/stores.svelte';
 import type { PetLocation } from '../../src/lib/stores.svelte';
 
 describe('Timeline', () => {
-  afterEach(() => {
-    cleanup();
+  // ponytail: freeze clock so `new Date().getHours()` in Timeline.svelte is
+  // deterministic; comprehensive reset prevents cross-file state leakage.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:30:00Z'));
     pets.splice(0, pets.length);
+    alerts.splice(0, alerts.length);
+    floorPlan.splice(0, floorPlan.length);
+    selectPet(null);
+    setConnectionStatus(false);
+    petTrails.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
   });
 
   const samplePets: PetLocation[] = [
