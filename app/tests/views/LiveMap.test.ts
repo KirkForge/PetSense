@@ -1,17 +1,34 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup, within } from '@testing-library/svelte';
 import { tick } from 'svelte';
 import LiveMap from '../../src/views/LiveMap.svelte';
-import { pets, floorPlan, selectedPetId, selectPet } from '../../src/lib/stores.svelte';
+import {
+  pets,
+  alerts,
+  floorPlan,
+  petTrails,
+  selectPet,
+  setConnectionStatus,
+} from '../../src/lib/stores.svelte';
 import type { Room, PetLocation } from '../../src/lib/stores.svelte';
 
 describe('LiveMap', () => {
-  afterEach(() => {
-    cleanup();
-    // Reset store state
+  // ponytail: comprehensive reset prevents cross-file state leakage when vitest
+  // runs test files concurrently.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:30:00Z'));
     pets.splice(0, pets.length);
+    alerts.splice(0, alerts.length);
     floorPlan.splice(0, floorPlan.length);
     selectPet(null);
+    setConnectionStatus(false);
+    petTrails.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
   });
 
   const sampleRooms: Room[] = [

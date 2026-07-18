@@ -1,15 +1,35 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, cleanup, within } from '@testing-library/svelte';
 import Health from '../../src/views/Health.svelte';
-import { pets, healthTrends, selectedPetId, selectPet } from '../../src/lib/stores.svelte';
+import {
+  pets,
+  alerts,
+  floorPlan,
+  healthTrends,
+  petTrails,
+  selectPet,
+  setConnectionStatus,
+} from '../../src/lib/stores.svelte';
 import type { PetLocation } from '../../src/lib/stores.svelte';
 
 describe('Health', () => {
-  afterEach(() => {
-    cleanup();
+  // ponytail: comprehensive reset prevents cross-file state leakage when vitest
+  // runs test files concurrently.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-18T12:30:00Z'));
     pets.splice(0, pets.length);
+    alerts.splice(0, alerts.length);
+    floorPlan.splice(0, floorPlan.length);
     healthTrends.splice(0, healthTrends.length);
     selectPet(null);
+    setConnectionStatus(false);
+    petTrails.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
   });
 
   const samplePets: PetLocation[] = [
