@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/svelte';
+import { render, cleanup, within } from '@testing-library/svelte';
 import Health from '../../src/views/Health.svelte';
 import { pets, healthTrends, selectedPetId, selectPet } from '../../src/lib/stores.svelte';
 import type { PetLocation } from '../../src/lib/stores.svelte';
@@ -49,9 +49,13 @@ describe('Health', () => {
     it('renders pet selector when multiple pets exist', () => {
       pets.push(...samplePets);
 
-      const { getByText } = render(Health);
-      expect(getByText('Rex')).toBeInTheDocument();
-      expect(getByText('Luna')).toBeInTheDocument();
+      const { container } = render(Health);
+      // Pet names also appear in the anomaly card when random dummy data
+      // triggers an anomaly, so scope assertions to the selector.
+      const selector = container.querySelector('.pet-selector') as HTMLElement;
+      const selectorScope = within(selector);
+      expect(selectorScope.getByText('Rex')).toBeInTheDocument();
+      expect(selectorScope.getByText('Luna')).toBeInTheDocument();
     });
 
     it('highlights the active pet in selector', () => {
