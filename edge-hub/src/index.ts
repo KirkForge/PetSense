@@ -6,7 +6,9 @@ import { EventEngine } from './event-engine.js';
 import { extractFeatures } from './preprocessing.js';
 import { APIServer } from './api-server.js';
 import { DB } from './db.js';
+import { estimatePosition } from './multilateration.js';
 import type { AggregatedFrame } from './csi-aggregator.js';
+import type { NodePosition } from './multilateration.js';
 
 const MQTT_PORT = 1883;
 const MQTT_WS_PORT = 8083;
@@ -22,27 +24,45 @@ const events = new EventEngine();
 
 const startTime = Date.now();
 
+let mqttConnected = false;
+let modelLoaded = false;
+
+// Node positions — configurable via config file in production.
+// Default layout: 4 nodes in a 10x8m room.
+const nodePositions = new Map<string, NodePosition>([
+  ['node-1', { x: 0, y: 0 }],
+  ['node-2', { x: 10, y: 0 }],
+  ['node-3', { x: 0, y: 8 }],
+  ['node-4', { x: 10, y: 8 }],
+]);
+
 async function main(): Promise<void> {
   broker.startBroker(MQTT_PORT, MQTT_WS_PORT);
+  mqttConnected = true;
 
   await engine.loadModel('models/petsense-v0.onnx');
+  modelLoaded = true;
 
   new APIServer(API_PORT, {
     db, tracker, events, startTime,
-    mqttConnected: true, modelLoaded: true,
+    mqttConnected: () => mqttConnected,
+    modelLoaded: () => modelLoaded,
   });
 
   aggregator.onFrame(async (frame: AggregatedFrame) => {
     try {
-      // ponytail: combinedVector is a single flat Float32Array; extractFeatures
-      // expects a window of frames (Float32Array[]). Wrap as one-frame window so
-      // the deferred pipeline type-checks. Real rolling-window wiring is deferred
-      // (hub does not run today — loadModel throws with no model).
       const features = extractFeatures([frame.combinedVector]);
       const result = await engine.classify(features);
       if (result.presence) {
-        tracker.update(result.species || 'unknown', { x: 0, y: 0 }); // position from multilateration
-        // broadcast via WebSocket
+        // Extract RSSI per node from the aggregated frame
+        const rssiMap = new Map<string, number>();
+        for (const [nodeId, pkt] of Object.entries(frame.nodes)) {
+          rssiMap.set(nodeId, pkt.rssi);
+        }
+        const position = estimatePosition(rssiMap, nodePositions);
+        const pos = position ?? { x: 0, y: 0 };
+        tracker.update(result.species || 'unknown', pos);
+        events.checkZones(result.species || 'unknown', pos);
       }
     } catch (err) { console.error('Pipeline error:', err); }
   });
@@ -52,6 +72,8 @@ async function main(): Promise<void> {
 
 function shutdown(): void {
   console.log('[hub] shutting down...');
+  mqttConnected = false;
+  modelLoaded = false;
   broker.close().then(() => {
     db.close();
     process.exit(0);

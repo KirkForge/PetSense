@@ -5,6 +5,8 @@ import { EventEmitter } from 'node:events';
 import { WebSocket, WebSocketServer, createWebSocketStream } from 'ws';
 import type { Server as NetServer } from 'node:net';
 import type { Server as HttpServer } from 'node:http';
+import { validateMQTTAuth, loadMQTTCredentials } from './auth.js';
+import type { MQTTCredentials } from './auth.js';
 
 // ponytail: aedes's default export is the Aedes class constructor (no named
 // `Aedes` type export); derive the instance type from it and construct with new.
@@ -26,11 +28,29 @@ export class MQTTBroker extends EventEmitter {
   private aedes: Aedes;
   private tcpServer: NetServer | null = null;
   private wsServer: HttpServer | null = null;
+  private credentials: MQTTCredentials | null;
 
   constructor() {
     super();
     this.aedes = new aedesFactory();
+    this.credentials = loadMQTTCredentials();
+    this.setupAuth();
     this.setupHandler();
+  }
+
+  private setupAuth(): void {
+    if (!this.credentials) return;
+    // aedes.authenticate hook — reject clients with wrong credentials
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this.aedes as any).authenticate = (client: unknown, username: string | undefined, password: Buffer | undefined, cb: (err: Error | null, success?: boolean) => void) => {
+      const pwd = password?.toString() ?? undefined;
+      if (validateMQTTAuth(username, pwd, this.credentials)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Authentication failed'));
+      }
+    };
+    console.log('[mqtt] authentication enabled');
   }
 
   private setupHandler(): void {

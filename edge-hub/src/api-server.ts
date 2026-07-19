@@ -4,23 +4,30 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type { DB } from './db.js';
 import type { KalmanTracker } from './tracker.js';
 import type { EventEngine } from './event-engine.js';
+import { validateBearerToken, loadBearerToken, RateLimiter, isOriginAllowed } from './auth.js';
 
 interface APIContext {
   db: DB;
   tracker: KalmanTracker;
   events: EventEngine;
   startTime: number;
-  mqttConnected: boolean;
-  modelLoaded: boolean;
+  mqttConnected: () => boolean;
+  modelLoaded: () => boolean;
 }
 
+const CORS_ALLOWLIST = (process.env.PETSENSE_CORS_ORIGINS ?? '').split(',').filter(Boolean);
+
 export class APIServer {
-  private server: Server;
+  server: Server;
   private wss: WebSocketServer;
   private ctx: APIContext;
+  private bearerToken: string | null;
+  private rateLimiter: RateLimiter;
 
   constructor(port: number, ctx: APIContext) {
     this.ctx = ctx;
+    this.bearerToken = loadBearerToken();
+    this.rateLimiter = new RateLimiter(60_000, 120);
     this.server = createServer((req, res) => this.handleRequest(req, res));
     this.wss = new WebSocketServer({ noServer: true });
     this.server.on('upgrade', (req, socket, head) => {
@@ -39,10 +46,27 @@ export class APIServer {
   }
 
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
-    setCORS(res);
+    const origin = req.headers.origin;
+    if (!isOriginAllowed(origin, CORS_ALLOWLIST)) {
+      res.writeHead(403).end(JSON.stringify({ error: 'origin not allowed' }));
+      return;
+    }
+    setCORS(res, origin, CORS_ALLOWLIST);
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
+    // Rate limit by IP
+    const ip = req.socket.remoteAddress ?? 'unknown';
+    if (!this.rateLimiter.allow(ip)) {
+      res.writeHead(429).end(JSON.stringify({ error: 'rate limit exceeded' }));
+      return;
+    }
+
+    // Bearer auth (skip for health check)
     const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    if (url.pathname !== '/api/health' && !validateBearerToken(req.headers.authorization, this.bearerToken)) {
+      res.writeHead(401).end(JSON.stringify({ error: 'unauthorized' }));
+      return;
+    }
 
     if (req.method === 'GET' && url.pathname === '/api/health') {
       this.handleHealth(res);
@@ -70,7 +94,7 @@ export class APIServer {
   private handleHealth(res: ServerResponse): void {
     const uptime = Date.now() - this.ctx.startTime;
     res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({
-      status: 'ok', uptime, mqttConnected: this.ctx.mqttConnected, modelLoaded: this.ctx.modelLoaded,
+      status: 'ok', uptime, mqttConnected: this.ctx.mqttConnected(), modelLoaded: this.ctx.modelLoaded(),
     }));
   }
 
@@ -92,8 +116,6 @@ export class APIServer {
   private handleZoneUpsert(body: string, res: ServerResponse): void {
     try {
       const zone = JSON.parse(body) as { id: unknown; name: unknown; bounds: unknown; type: unknown };
-      // ponytail: trust-boundary validation — JSON.parse `as` is a cast, not a check,
-      // so verify each field is a non-empty string before it reaches db.upsertZone.
       if (typeof zone.id !== 'string' || typeof zone.name !== 'string' ||
           typeof zone.bounds !== 'string' || typeof zone.type !== 'string' ||
           zone.id.length === 0 || zone.name.length === 0) {
@@ -132,8 +154,6 @@ export class APIServer {
     res.writeHead(413, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'body too large' }));
   }
 
-  // ponytail: 1 MiB body cap at the trust boundary — without this readBody
-  // accumulates unbounded, a trivial memory-exhaustion vector on the hub.
   private readBody(req: IncomingMessage, maxBytes = 1024 * 1024): Promise<string> {
     return new Promise((resolve, reject) => {
       let body = '';
@@ -147,8 +167,13 @@ export class APIServer {
   }
 }
 
-function setCORS(res: ServerResponse): void {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+function setCORS(res: ServerResponse, origin: string | undefined, allowlist: string[]): void {
+  if (allowlist.length === 0) {
+    // Dev mode: no CORS restriction
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else if (origin && allowlist.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
