@@ -21,15 +21,23 @@ build/
 .svelte-kit/
 .pio/
 
+# Generated data/models
+data/
+edge-hub/models/
+models/checkpoints/
+
 # LLM tooling (never committed)
 .claude/
 CLAUDE.md
-AGENTS.md
-state.md
-STATE.md
 deepseek.md
 REPORULES.md
 summary.md
+# NOTE: AGENTS.md, state.md, STATE.md are TRACKED (worker contract + repo state). Do not ignore them.
+# (This repo uses uppercase STATE.md for tracked repo state; lowercase state.md is also tracked per worker contract.)
+
+# Agent work files (per-session, not tracked — per AGENTS.md worker contract)
+workplan.md
+lessons.md
 
 # Type checking
 .mypy_cache/
