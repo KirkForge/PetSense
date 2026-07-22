@@ -1,23 +1,26 @@
 # Dependabot configuration for PetSense
 #
-# This file intentionally disables Dependabot update PRs for this repository.
+# This file intentionally disables Dependabot update PRs for this repository
+# to avoid churn. Vulnerability alerts and the dependency graph remain enabled;
+# only automated update PRs are stopped.
 #
-# Background: PetSense is a research / firmware project that does not use
-# GitHub Actions, has no `action.yml`, and has no `.github/workflows/*.yml`.
-# Without this file, GitHub's user-level Dependabot configuration (which
-# enables a `github_actions` ecosystem scan) was firing scheduled update
-# runs that aborted on every cycle with:
+# This repo has three CI workflow jobs in `.github/workflows/ci.yml`:
+# App (Svelte/TS), Edge Hub (TypeScript), and Firmware (PlatformIO).
+# The earlier rationale claiming "does not use GitHub Actions" was incorrect.
 #
-#   /action.yml or /.github/workflows/<anything>.yml not found
+# To re-enable Dependabot update PRs, add entries under `updates:`
+# for `npm` (app + edge-hub) and `github-actions`:
 #
-# That was the source of the constant "CI failed" noise on the Actions tab.
-#
-# An empty `version: 2` config with no `updates:` entries tells Dependabot
-# to do nothing for this repo. Vulnerability alerts and the dependency
-# graph continue to work; only automated update PRs are stopped.
-#
-# To re-enable Dependabot in the future, add entries under `updates:`
-# (see https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file).
+#   updates:
+#     - package-ecosystem: npm
+#       directory: /app
+#       schedule: { interval: weekly }
+#     - package-ecosystem: npm
+#       directory: /edge-hub
+#       schedule: { interval: weekly }
+#     - package-ecosystem: github-actions
+#       directory: /
+#       schedule: { interval: weekly }
 
 version: 2
 # No `updates:` block → Dependabot runs no scheduled jobs for this repo.
