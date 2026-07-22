@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createServer as createHTTPS } from 'node:https';
 import type { IncomingMessage, ServerResponse, Server } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import type { DB } from './db.js';
@@ -13,9 +14,8 @@ interface APIContext {
   startTime: number;
   mqttConnected: () => boolean;
   modelLoaded: () => boolean;
+  corsAllowlist: string[];
 }
-
-const CORS_ALLOWLIST = (process.env.PETSENSE_CORS_ORIGINS ?? '').split(',').filter(Boolean);
 
 export class APIServer {
   server: Server;
@@ -45,13 +45,31 @@ export class APIServer {
     });
   }
 
+  startTLS(cert: Buffer, key: Buffer, port: number): void {
+    this.server.close();
+    this.server = createHTTPS({ cert, key }, (req, res) => this.handleRequest(req, res));
+    this.server.on('upgrade', (req, socket, head) => {
+      if (req.url !== '/api/realtime') {
+        socket.destroy();
+        return;
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.wss.handleUpgrade(req, socket, head, (ws: any) => {
+        this.wss.emit('connection', ws, req);
+      });
+    });
+    this.server.listen(port, () => {
+      console.log(`[api] listening on :${port} (TLS)`);
+    });
+  }
+
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
     const origin = req.headers.origin;
-    if (!isOriginAllowed(origin, CORS_ALLOWLIST)) {
+    if (!isOriginAllowed(origin, this.ctx.corsAllowlist)) {
       res.writeHead(403).end(JSON.stringify({ error: 'origin not allowed' }));
       return;
     }
-    setCORS(res, origin, CORS_ALLOWLIST);
+    setCORS(res, origin, this.ctx.corsAllowlist);
     if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
     // Rate limit by IP
@@ -169,8 +187,9 @@ export class APIServer {
 
 function setCORS(res: ServerResponse, origin: string | undefined, allowlist: string[]): void {
   if (allowlist.length === 0) {
-    // Dev mode: no CORS restriction
-    res.setHeader('Access-Control-Allow-Origin', '*');
+    if (process.env.PETSENSE_CORS_OPEN === '1') {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+    }
   } else if (origin && allowlist.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }

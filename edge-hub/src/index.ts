@@ -9,11 +9,21 @@ import { DB } from './db.js';
 import { estimatePosition } from './multilateration.js';
 import type { AggregatedFrame } from './csi-aggregator.js';
 import type { NodePosition } from './multilateration.js';
+import { readFileSync, existsSync } from 'node:fs';
+import { parse as parseYAML } from 'yaml';
 
-const MQTT_PORT = 1883;
-const MQTT_WS_PORT = 8083;
-const API_PORT = 3000;
 const DB_PATH = 'petsense.db';
+
+const configPath = process.env.PETSENSE_CONFIG ?? 'config.yaml';
+const config = parseYAML(readFileSync(configPath, 'utf-8'));
+
+const MQTT_PORT = config.mqtt?.port ?? 1883;
+const MQTT_WS_PORT = config.mqtt?.wsPort ?? 8083;
+const API_PORT = config.api?.port ?? 3000;
+const TLS_ENABLED: boolean = config.api?.tls?.enabled ?? false;
+const TLS_CERT: string = config.api?.tls?.certFile ?? '';
+const TLS_KEY: string = config.api?.tls?.keyFile ?? '';
+const CORS_ORIGINS: string[] = config.api?.cors?.origins ?? [];
 
 const db = new DB(DB_PATH);
 const broker = new MQTTBroker();
@@ -27,14 +37,13 @@ const startTime = Date.now();
 let mqttConnected = false;
 let modelLoaded = false;
 
-// Node positions — configurable via config file in production.
-// Default layout: 4 nodes in a 10x8m room.
-const nodePositions = new Map<string, NodePosition>([
-  ['node-1', { x: 0, y: 0 }],
-  ['node-2', { x: 10, y: 0 }],
-  ['node-3', { x: 0, y: 8 }],
-  ['node-4', { x: 10, y: 8 }],
-]);
+// Node positions from config
+const nodePositions = new Map<string, NodePosition>();
+for (const node of config.nodes ?? []) {
+  if (node.id && node.position) {
+    nodePositions.set(node.id, { x: node.position.x, y: node.position.y });
+  }
+}
 
 async function main(): Promise<void> {
   broker.startBroker(MQTT_PORT, MQTT_WS_PORT);
@@ -43,11 +52,17 @@ async function main(): Promise<void> {
   await engine.loadModel('models/petsense-v0.onnx');
   modelLoaded = true;
 
-  new APIServer(API_PORT, {
+  const ctx = {
     db, tracker, events, startTime,
     mqttConnected: () => mqttConnected,
     modelLoaded: () => modelLoaded,
-  });
+    corsAllowlist: CORS_ORIGINS,
+  };
+
+  const apiServer = new APIServer(API_PORT, ctx);
+  if (TLS_ENABLED && TLS_CERT && TLS_KEY && existsSync(TLS_CERT) && existsSync(TLS_KEY)) {
+    apiServer.startTLS(readFileSync(TLS_CERT), readFileSync(TLS_KEY), API_PORT);
+  }
 
   aggregator.onFrame(async (frame: AggregatedFrame) => {
     try {

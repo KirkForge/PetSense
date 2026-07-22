@@ -26,3 +26,11 @@ mqtt:
 
 api:
   port: 3000
+  tls:
+    enabled: false
+    certFile: /etc/petsense/cert.pem
+    keyFile: /etc/petsense/key.pem
+  cors:
+    origins:
+      - "http://localhost:5173"
+      - "https://app.petsense.local"

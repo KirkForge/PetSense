@@ -35,6 +35,7 @@ describe('APIServer', () => {
       db, tracker, events, startTime: Date.now(),
       mqttConnected: () => true,
       modelLoaded: () => false,
+      corsAllowlist: [],
     });
   });
 
