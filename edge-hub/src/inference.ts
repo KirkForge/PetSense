@@ -1,4 +1,7 @@
 import * as ort from 'onnxruntime-node';
+import { child } from './logger.js';
+
+const log = child('inference');
 
 export interface InferenceResult {
   presence: boolean;
@@ -17,7 +20,7 @@ export class InferenceEngine {
 
   async loadModel(path: string): Promise<void> {
     this.session = await ort.InferenceSession.create(path);
-    console.log(`[inference] model loaded: ${path}`);
+    log.info({ path }, 'model loaded');
   }
 
   async classify(features: Float32Array): Promise<InferenceResult> {

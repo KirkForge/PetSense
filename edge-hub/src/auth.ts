@@ -6,6 +6,9 @@
  */
 
 import crypto from 'node:crypto';
+import { child } from './logger.js';
+
+const log = child('auth');
 
 // --- MQTT Authentication ---
 
@@ -41,7 +44,7 @@ export function loadMQTTCredentials(): MQTTCredentials | null {
   const user = process.env.PETSENSE_MQTT_USER;
   const pass = process.env.PETSENSE_MQTT_PASS;
   if (!user || !pass) {
-    console.warn('[auth] PETSENSE_MQTT_USER/PETSENSE_MQTT_PASS not set — MQTT auth disabled (dev only)');
+    log.warn('PETSENSE_MQTT_USER/PETSENSE_MQTT_PASS not set — MQTT auth disabled (dev only)');
     return null;
   }
   return { username: user, password: pass };
@@ -65,7 +68,7 @@ export function validateBearerToken(
 export function loadBearerToken(): string | null {
   const token = process.env.PETSENSE_API_TOKEN;
   if (!token) {
-    console.warn('[auth] PETSENSE_API_TOKEN not set — REST auth disabled (dev only)');
+    log.warn('PETSENSE_API_TOKEN not set — REST auth disabled (dev only)');
     return null;
   }
   return token;

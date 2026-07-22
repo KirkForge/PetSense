@@ -7,6 +7,9 @@ import type { Server as NetServer } from 'node:net';
 import type { Server as HttpServer } from 'node:http';
 import { validateMQTTAuth, loadMQTTCredentials } from './auth.js';
 import type { MQTTCredentials } from './auth.js';
+import { child } from './logger.js';
+
+const log = child('mqtt');
 
 // ponytail: aedes's default export is the Aedes class constructor (no named
 // `Aedes` type export); derive the instance type from it and construct with new.
@@ -50,7 +53,7 @@ export class MQTTBroker extends EventEmitter {
         cb(new Error('Authentication failed'));
       }
     };
-    console.log('[mqtt] authentication enabled');
+    log.info('authentication enabled');
   }
 
   private setupHandler(): void {
@@ -84,7 +87,7 @@ export class MQTTBroker extends EventEmitter {
   startBroker(port: number, wsPort: number): void {
     this.tcpServer = createServer(this.aedes.handle as (sock: unknown) => void);
     this.tcpServer.listen(port, () => {
-      console.log(`[mqtt] TCP broker on :${port}`);
+      log.info({ port }, 'TCP broker listening');
     });
 
     const http = createHttpServer();
@@ -98,7 +101,7 @@ export class MQTTBroker extends EventEmitter {
     });
     this.wsServer = http;
     http.listen(wsPort, () => {
-      console.log(`[mqtt] WebSocket broker on :${wsPort}`);
+      log.info({ port: wsPort }, 'WebSocket broker listening');
     });
   }
 

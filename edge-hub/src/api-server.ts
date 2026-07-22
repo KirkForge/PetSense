@@ -6,6 +6,9 @@ import type { DB } from './db.js';
 import type { KalmanTracker } from './tracker.js';
 import type { EventEngine } from './event-engine.js';
 import { validateBearerToken, loadBearerToken, RateLimiter, isOriginAllowed } from './auth.js';
+import { child } from './logger.js';
+
+const log = child('api');
 
 interface APIContext {
   db: DB;
@@ -41,7 +44,7 @@ export class APIServer {
       });
     });
     this.server.listen(port, () => {
-      console.log(`[api] listening on :${port}`);
+      log.info({ port }, 'API server listening');
     });
   }
 
@@ -59,7 +62,7 @@ export class APIServer {
       });
     });
     this.server.listen(port, () => {
-      console.log(`[api] listening on :${port} (TLS)`);
+      log.info({ port, tls: true }, 'API server listening');
     });
   }
 

@@ -11,6 +11,9 @@ import type { AggregatedFrame } from './csi-aggregator.js';
 import type { NodePosition } from './multilateration.js';
 import { readFileSync, existsSync } from 'node:fs';
 import { parse as parseYAML } from 'yaml';
+import { child } from './logger.js';
+
+const log = child('hub');
 
 const DB_PATH = 'petsense.db';
 
@@ -79,14 +82,14 @@ async function main(): Promise<void> {
         tracker.update(result.species || 'unknown', pos);
         events.checkZones(result.species || 'unknown', pos);
       }
-    } catch (err) { console.error('Pipeline error:', err); }
+    } catch (err) { log.error({ err }, 'pipeline error'); }
   });
 
-  console.log('[hub] PetSense edge hub running');
+  log.info('PetSense edge hub running');
 }
 
 function shutdown(): void {
-  console.log('[hub] shutting down...');
+  log.info('shutting down...');
   mqttConnected = false;
   modelLoaded = false;
   broker.close().then(() => {
@@ -100,6 +103,6 @@ process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
 main().catch(err => {
-  console.error('[hub] fatal:', err);
+  log.fatal({ err }, 'fatal error');
   process.exit(1);
 });
