@@ -136,16 +136,13 @@ export class APIServer {
 
   private handleZoneUpsert(body: string, res: ServerResponse): void {
     try {
-      const zone = JSON.parse(body) as { id: unknown; name: unknown; bounds: unknown; type: unknown };
-      if (typeof zone.id !== 'string' || typeof zone.name !== 'string' ||
-          typeof zone.bounds !== 'string' || typeof zone.type !== 'string' ||
-          zone.id.length === 0 || zone.name.length === 0) {
-        res.writeHead(400).end(JSON.stringify({
-          error: 'invalid zone: id, name, bounds, type must be non-empty strings',
-        }));
+      const parsed: unknown = JSON.parse(body);
+      const result = validateZone(parsed);
+      if (!result.ok) {
+        res.writeHead(400).end(JSON.stringify({ error: result.error }));
         return;
       }
-      this.ctx.db.upsertZone({ id: zone.id, name: zone.name, bounds: zone.bounds, type: zone.type });
+      this.ctx.db.upsertZone(result.zone);
       res.writeHead(200).end(JSON.stringify({ ok: true }));
     } catch {
       res.writeHead(400).end(JSON.stringify({ error: 'invalid body' }));
@@ -186,6 +183,53 @@ export class APIServer {
       req.on('error', reject);
     });
   }
+}
+
+const VALID_ZONE_TYPES = ['alert', 'safe', 'notify'] as const;
+
+type ZoneType = typeof VALID_ZONE_TYPES[number];
+
+interface ValidZone {
+  id: string;
+  name: string;
+  bounds: string;
+  type: ZoneType;
+}
+
+function validateZone(input: unknown): { ok: true; zone: ValidZone } | { ok: false; error: string } {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    return { ok: false, error: 'invalid zone: body must be a JSON object' };
+  }
+  const obj = input as Record<string, unknown>;
+
+  if (typeof obj.id !== 'string' || obj.id.length === 0) {
+    return { ok: false, error: 'invalid zone: id must be a non-empty string' };
+  }
+  if (typeof obj.name !== 'string' || obj.name.length === 0) {
+    return { ok: false, error: 'invalid zone: name must be a non-empty string' };
+  }
+  if (typeof obj.type !== 'string' || !VALID_ZONE_TYPES.includes(obj.type as ZoneType)) {
+    return { ok: false, error: `invalid zone: type must be one of ${VALID_ZONE_TYPES.join(', ')}` };
+  }
+  if (typeof obj.bounds !== 'object' || obj.bounds === null || Array.isArray(obj.bounds)) {
+    return { ok: false, error: 'invalid zone: bounds must be an object with numeric x1, y1, x2, y2' };
+  }
+  const bounds = obj.bounds as Record<string, unknown>;
+  for (const key of ['x1', 'y1', 'x2', 'y2'] as const) {
+    if (typeof bounds[key] !== 'number') {
+      return { ok: false, error: `invalid zone: bounds.${key} must be a number` };
+    }
+  }
+
+  return {
+    ok: true,
+    zone: {
+      id: obj.id as string,
+      name: obj.name as string,
+      bounds: JSON.stringify(bounds),
+      type: obj.type as ZoneType,
+    },
+  };
 }
 
 function setCORS(res: ServerResponse, origin: string | undefined, allowlist: string[]): void {
