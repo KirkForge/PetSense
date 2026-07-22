@@ -26,9 +26,11 @@ export class APIServer {
   private ctx: APIContext;
   private bearerToken: string | null;
   private rateLimiter: RateLimiter;
+  private host: string;
 
-  constructor(port: number, ctx: APIContext) {
+  constructor(port: number, ctx: APIContext, host = '127.0.0.1') {
     this.ctx = ctx;
+    this.host = host;
     this.bearerToken = loadBearerToken();
     this.rateLimiter = new RateLimiter(60_000, 120);
     this.server = createServer((req, res) => this.handleRequest(req, res));
@@ -43,8 +45,11 @@ export class APIServer {
         this.wss.emit('connection', ws, req);
       });
     });
-    this.server.listen(port, () => {
-      log.info({ port }, 'API server listening');
+    if (this.host !== '127.0.0.1') {
+      log.warn({ host: this.host }, 'non-loopback bind — API exposed to network; ensure auth is enabled');
+    }
+    this.server.listen(port, this.host, () => {
+      log.info({ port, host: this.host }, 'API server listening');
     });
   }
 
@@ -61,8 +66,8 @@ export class APIServer {
         this.wss.emit('connection', ws, req);
       });
     });
-    this.server.listen(port, () => {
-      log.info({ port, tls: true }, 'API server listening');
+    this.server.listen(port, this.host, () => {
+      log.info({ port, host: this.host, tls: true }, 'API server listening');
     });
   }
 

@@ -84,10 +84,13 @@ export class MQTTBroker extends EventEmitter {
     });
   }
 
-  startBroker(port: number, wsPort: number): void {
+  startBroker(port: number, wsPort: number, host = '127.0.0.1'): void {
+    if (host !== '127.0.0.1') {
+      log.warn({ host }, 'non-loopback bind — MQTT broker exposed to network; ensure auth is enabled');
+    }
     this.tcpServer = createServer(this.aedes.handle as (sock: unknown) => void);
-    this.tcpServer.listen(port, () => {
-      log.info({ port }, 'TCP broker listening');
+    this.tcpServer.listen(port, host, () => {
+      log.info({ port, host }, 'TCP broker listening');
     });
 
     const http = createHttpServer();
@@ -100,8 +103,8 @@ export class MQTTBroker extends EventEmitter {
       stream.on('error', () => { /* client dropped */ });
     });
     this.wsServer = http;
-    http.listen(wsPort, () => {
-      log.info({ port: wsPort }, 'WebSocket broker listening');
+    http.listen(wsPort, host, () => {
+      log.info({ port: wsPort, host }, 'WebSocket broker listening');
     });
   }
 

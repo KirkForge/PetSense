@@ -221,3 +221,37 @@ describe('APIServer', () => {
     expect((delRes.body as any).ok).toBe(true);
   });
 });
+
+describe('APIServer loopback bind', () => {
+  it('binds to 127.0.0.1 by default and accepts connections', async () => {
+    const port = 3097;
+    const db = new DB(':memory:');
+    const srv = new APIServer(port, {
+      db, tracker: new KalmanTracker(), events: new EventEngine(),
+      startTime: Date.now(), mqttConnected: () => false, modelLoaded: () => false,
+      corsAllowlist: [],
+    });
+    expect((srv as any).host).toBe('127.0.0.1');
+    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+    expect(res.status).toBe(200);
+    (srv as any).server.close();
+    db.close();
+  });
+
+  it('binds to 0.0.0.0 when specified and stores host property', async () => {
+    const port = 3096;
+    const db = new DB(':memory:');
+    const srv = new APIServer(port, {
+      db, tracker: new KalmanTracker(), events: new EventEngine(),
+      startTime: Date.now(), mqttConnected: () => false, modelLoaded: () => false,
+      corsAllowlist: [],
+    }, '0.0.0.0');
+
+    expect((srv as any).host).toBe('0.0.0.0');
+    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+    expect(res.status).toBe(200);
+
+    (srv as any).server.close();
+    db.close();
+  });
+});
