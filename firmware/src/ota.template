@@ -1,0 +1,9 @@
+#pragma once
+
+// OTA signing public key template.
+// Copy this file to firmware/src/ota.key and fill in the real Ed25519
+// public key (32 bytes hex). ota.key is gitignored — only this template
+// is tracked.
+
+#define OTA_PUBKEY_01 "0102030405060708090a0b0c0d0e0f10"
+#define OTA_PUBKEY_02 "1112131415161718191a1b1c1d1e1f20"
