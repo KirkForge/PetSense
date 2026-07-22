@@ -23,9 +23,11 @@ zones:
 mqtt:
   port: 1883
   wsPort: 8083
+  host: 127.0.0.1
 
 api:
   port: 3000
+  host: 127.0.0.1
   tls:
     enabled: false
     certFile: /etc/petsense/cert.pem

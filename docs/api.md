@@ -42,11 +42,14 @@ List configured alert zones from the DB. Returns `{ "zones": [ ... ] }`.
 ### `POST /api/zones`
 Upsert a zone. Request body (JSON, max 1 MiB):
 ```json
-{ "id": "kitchen-alert", "name": "kitchen-alert", "bounds": "kitchen", "type": "alert" }
+{ "id": "kitchen-alert", "name": "kitchen-alert", "bounds": { "x1": 6, "y1": 0, "x2": 10, "y2": 5 }, "type": "alert" }
 ```
-All four fields (`id`, `name`, `bounds`, `type`) are required strings; `id`
-and `name` must be non-empty. Returns `{ "ok": true }` on success, `400` on a
-malformed/invalid body, `413` if the body exceeds 1 MiB.
+All four fields are required. `id` and `name` must be non-empty strings.
+`bounds` must be an object with numeric `x1`, `y1`, `x2`, `y2` fields.
+`type` must be one of `alert`, `safe`, or `notify`.
+Runtime validation at `edge-hub/src/api-server.ts:validateZone()` returns `400`
+with a descriptive error on violation. Returns `{ "ok": true }` on success,
+`413` if the body exceeds 1 MiB.
 
 ### `DELETE /api/zones`
 Delete a zone by id. Request body (JSON): `{ "id": "<zone-id>" }`.

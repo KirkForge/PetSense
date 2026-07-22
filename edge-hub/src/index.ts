@@ -23,6 +23,8 @@ const config = parseYAML(readFileSync(configPath, 'utf-8'));
 const MQTT_PORT = config.mqtt?.port ?? 1883;
 const MQTT_WS_PORT = config.mqtt?.wsPort ?? 8083;
 const API_PORT = config.api?.port ?? 3000;
+const API_HOST = process.env.PETSENSE_HOST ?? config.api?.host ?? '127.0.0.1';
+const MQTT_HOST = process.env.PETSENSE_HOST ?? config.mqtt?.host ?? '127.0.0.1';
 const TLS_ENABLED: boolean = config.api?.tls?.enabled ?? false;
 const TLS_CERT: string = config.api?.tls?.certFile ?? '';
 const TLS_KEY: string = config.api?.tls?.keyFile ?? '';
@@ -49,7 +51,7 @@ for (const node of config.nodes ?? []) {
 }
 
 async function main(): Promise<void> {
-  broker.startBroker(MQTT_PORT, MQTT_WS_PORT);
+  broker.startBroker(MQTT_PORT, MQTT_WS_PORT, MQTT_HOST);
   mqttConnected = true;
 
   await engine.loadModel('models/petsense-v0.onnx');
@@ -62,7 +64,7 @@ async function main(): Promise<void> {
     corsAllowlist: CORS_ORIGINS,
   };
 
-  const apiServer = new APIServer(API_PORT, ctx);
+  const apiServer = new APIServer(API_PORT, ctx, API_HOST);
   if (TLS_ENABLED && TLS_CERT && TLS_KEY && existsSync(TLS_CERT) && existsSync(TLS_KEY)) {
     apiServer.startTLS(readFileSync(TLS_CERT), readFileSync(TLS_KEY), API_PORT);
   }

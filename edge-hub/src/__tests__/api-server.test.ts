@@ -22,6 +22,52 @@ function fetch(url: string, opts?: { headers?: Record<string, string> }): Promis
   });
 }
 
+function post(url: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const payload = JSON.stringify(body);
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...headers },
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function del(url: string, body: unknown, headers: Record<string, string> = {}): Promise<{ status: number; body: unknown }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const payload = JSON.stringify(body);
+    const req = http.request({
+      hostname: parsed.hostname,
+      port: parsed.port,
+      path: parsed.pathname,
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload), ...headers },
+    }, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        resolve({ status: res.statusCode ?? 0, body: JSON.parse(data) });
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
 describe('APIServer', () => {
   let server: APIServer;
   const PORT = 3099;
@@ -86,5 +132,126 @@ describe('APIServer', () => {
   it('unknown route returns 404 (authenticated)', async () => {
     const res = await fetch(`http://127.0.0.1:${PORT}/api/nonexistent`, { headers: authHeaders });
     expect(res.status).toBe(404);
+  });
+
+  it('POST /api/zones with valid zone returns 200', async () => {
+    const res = await post(`http://127.0.0.1:${PORT}/api/zones`, {
+      id: 'kitchen-alert',
+      name: 'Kitchen Alert',
+      bounds: { x1: 6, y1: 0, x2: 10, y2: 5 },
+      type: 'alert',
+    }, authHeaders);
+    expect(res.status).toBe(200);
+    expect((res.body as any).ok).toBe(true);
+
+    const list = await fetch(`http://127.0.0.1:${PORT}/api/zones`, { headers: authHeaders });
+    expect(list.status).toBe(200);
+    const zones = (list.body as any).zones;
+    expect(zones.length).toBeGreaterThanOrEqual(1);
+    expect(zones[0].id).toBe('kitchen-alert');
+    expect(zones[0].type).toBe('alert');
+  });
+
+  it('POST /api/zones with missing name returns 400', async () => {
+    const res = await post(`http://127.0.0.1:${PORT}/api/zones`, {
+      id: 'z1',
+      name: '',
+      bounds: { x1: 0, y1: 0, x2: 5, y2: 5 },
+      type: 'alert',
+    }, authHeaders);
+    expect(res.status).toBe(400);
+    expect((res.body as any).error).toContain('name');
+  });
+
+  it('POST /api/zones with numeric id returns 400', async () => {
+    const res = await post(`http://127.0.0.1:${PORT}/api/zones`, {
+      id: 123,
+      name: 'test',
+      bounds: { x1: 0, y1: 0, x2: 5, y2: 5 },
+      type: 'safe',
+    }, authHeaders);
+    expect(res.status).toBe(400);
+    expect((res.body as any).error).toContain('id');
+  });
+
+  it('POST /api/zones with bounds as string returns 400', async () => {
+    const res = await post(`http://127.0.0.1:${PORT}/api/zones`, {
+      id: 'z2',
+      name: 'test',
+      bounds: 'kitchen',
+      type: 'alert',
+    }, authHeaders);
+    expect(res.status).toBe(400);
+    expect((res.body as any).error).toContain('bounds');
+  });
+
+  it('POST /api/zones with invalid type returns 400', async () => {
+    const res = await post(`http://127.0.0.1:${PORT}/api/zones`, {
+      id: 'z3',
+      name: 'test',
+      bounds: { x1: 0, y1: 0, x2: 5, y2: 5 },
+      type: 'bogus',
+    }, authHeaders);
+    expect(res.status).toBe(400);
+    expect((res.body as any).error).toContain('type');
+  });
+
+  it('POST /api/zones with bounds missing x2 returns 400', async () => {
+    const res = await post(`http://127.0.0.1:${PORT}/api/zones`, {
+      id: 'z4',
+      name: 'test',
+      bounds: { x1: 0, y1: 0, y2: 5 },
+      type: 'notify',
+    }, authHeaders);
+    expect(res.status).toBe(400);
+    expect((res.body as any).error).toContain('x2');
+  });
+
+  it('DELETE /api/zones with valid id returns 200', async () => {
+    const createRes = await post(`http://127.0.0.1:${PORT}/api/zones`, {
+      id: 'del-zone',
+      name: 'ToDelete',
+      bounds: { x1: 0, y1: 0, x2: 1, y2: 1 },
+      type: 'safe',
+    }, authHeaders);
+    expect(createRes.status).toBe(200);
+
+    const delRes = await del(`http://127.0.0.1:${PORT}/api/zones`, { id: 'del-zone' }, authHeaders);
+    expect(delRes.status).toBe(200);
+    expect((delRes.body as any).ok).toBe(true);
+  });
+});
+
+describe('APIServer loopback bind', () => {
+  it('binds to 127.0.0.1 by default and accepts connections', async () => {
+    const port = 3097;
+    const db = new DB(':memory:');
+    const srv = new APIServer(port, {
+      db, tracker: new KalmanTracker(), events: new EventEngine(),
+      startTime: Date.now(), mqttConnected: () => false, modelLoaded: () => false,
+      corsAllowlist: [],
+    });
+    expect((srv as any).host).toBe('127.0.0.1');
+    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+    expect(res.status).toBe(200);
+    (srv as any).server.close();
+    db.close();
+  });
+
+  it('binds to 0.0.0.0 when specified and stores host property', async () => {
+    const port = 3096;
+    const db = new DB(':memory:');
+    const srv = new APIServer(port, {
+      db, tracker: new KalmanTracker(), events: new EventEngine(),
+      startTime: Date.now(), mqttConnected: () => false, modelLoaded: () => false,
+      corsAllowlist: [],
+    }, '0.0.0.0');
+
+    expect((srv as any).host).toBe('0.0.0.0');
+    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+    expect(res.status).toBe(200);
+
+    (srv as any).server.close();
+    db.close();
   });
 });

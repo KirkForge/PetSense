@@ -1,5 +1,50 @@
 import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
+import { child } from './logger.js';
+
+const log = child('db');
+
+export interface Migration {
+  version: number;
+  sql: string;
+}
+
+export const MIGRATIONS: Migration[] = [
+  {
+    version: 1,
+    sql: `
+      CREATE TABLE IF NOT EXISTS positions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id TEXT NOT NULL,
+        x REAL NOT NULL,
+        y REAL NOT NULL,
+        room TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_positions_pet_ts ON positions(pet_id, timestamp);
+      CREATE TABLE IF NOT EXISTS events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        pet_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        message TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);
+      CREATE TABLE IF NOT EXISTS zones (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        bounds TEXT NOT NULL,
+        type TEXT NOT NULL DEFAULT 'info'
+      );
+      CREATE TABLE IF NOT EXISTS health_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        check_type TEXT NOT NULL,
+        status TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      );
+    `,
+  },
+];
 
 export interface PositionRecord {
   pet_id: string;
@@ -30,40 +75,37 @@ export class DB {
     this.db = new Database(path);
     this.db.pragma('journal_mode = WAL');
     this.init();
+    this.migrate();
   }
 
   private init(): void {
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS positions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        pet_id TEXT NOT NULL,
-        x REAL NOT NULL,
-        y REAL NOT NULL,
-        room TEXT NOT NULL,
-        timestamp INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_positions_pet_ts ON positions(pet_id, timestamp);
-      CREATE TABLE IF NOT EXISTS events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        pet_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        message TEXT NOT NULL,
-        timestamp INTEGER NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_events_ts ON events(timestamp);
-      CREATE TABLE IF NOT EXISTS zones (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        bounds TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'info'
-      );
-      CREATE TABLE IF NOT EXISTS health_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        check_type TEXT NOT NULL,
-        status TEXT NOT NULL,
-        timestamp INTEGER NOT NULL
+      CREATE TABLE IF NOT EXISTS schema_version (
+        version INTEGER PRIMARY KEY
       );
     `);
+  }
+
+  private migrate(): void {
+    const currentVersion = this.getVersion();
+    log.info({ currentVersion, targetVersion: MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0 }, 'running migrations');
+    for (const migration of MIGRATIONS) {
+      if (migration.version <= currentVersion) continue;
+      this.db.transaction(() => {
+        this.db.exec(migration.sql);
+        this.db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(migration.version);
+      })();
+      log.info({ version: migration.version }, 'migration applied');
+    }
+  }
+
+  private getVersion(): number {
+    const row = this.db.prepare('SELECT MAX(version) as v FROM schema_version').get() as { v: number | null };
+    return row.v ?? 0;
+  }
+
+  getSchemaVersion(): number {
+    return this.getVersion();
   }
 
   insertPosition(rec: PositionRecord): void {
