@@ -4,7 +4,7 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 from scipy.signal import medfilt
@@ -120,9 +120,8 @@ class CSIPreprocessor:
         out_path = Path(output_dir)
         out_path.mkdir(parents=True, exist_ok=True)
 
-        candidates = sorted(raw_path.glob(f"{label.split('_')[0]}*.npy"))
-        if not candidates:
-            candidates = sorted(raw_path.glob("*.npy"))
+        # Match exact filename pattern: species_activity_room_sessionId.npy
+        candidates = sorted(raw_path.rglob(f"{label}.npy"))
         if not candidates:
             log.warning("No raw files found in %s for label %s", raw_dir, label)
             return

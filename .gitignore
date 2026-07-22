@@ -23,7 +23,6 @@ build/
 
 # Generated data/models
 data/
-edge-hub/models/
 models/checkpoints/
 
 # LLM tooling (never committed)
