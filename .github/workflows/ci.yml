@@ -35,9 +35,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      # ponytail: no npm cache — edge-hub has no package-lock.json yet (gap #6),
-      # so a cache-dependency-path would be a dead key. Add when lockfile lands.
+          cache: "npm"
+          cache-dependency-path: edge-hub/package-lock.json
       - name: Install deps
         run: npm install
       - name: Type-check (tsc --noEmit)
         run: npx tsc --noEmit
+      - name: Test (vitest)
+        run: npm test
+
+  firmware:
+    name: Firmware (PlatformIO)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firmware
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Materialize secrets.h from template
+        run: cp src/secrets.h.template src/secrets.h
+      - name: Build firmware
+        run: pio run
