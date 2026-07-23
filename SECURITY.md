@@ -27,9 +27,14 @@ covered by current code):
    cipher_plaintext_header_size = 32`, `edge-hub/src/db.ts:82-85`).
    Opening an encrypted database without the key throws
    `SQLITE_NOTADB`.
-2. **MQTT broker uses plain TCP.** `firmware/src/main.cpp` uses
-   `WiFiClient` (not `WiFiClientSecure`). MQTT over TLS (port 8883) is
-   not yet wired.
+2. **MQTT broker TLS is opt-in per node.** `firmware/src/main.cpp` uses
+   `WiFiClient` by default (plain TCP, port 1883). When
+   `MQTT_TLS_ENABLED` is defined at compile time, it switches to
+   `WiFiClientSecure` with `MQTT_TLS_CA_CERT` from `secrets.h`
+   (`firmware/src/main.cpp:18-20`, `firmware/src/main.cpp:78-80`).
+   The edge-hub MQTT broker (`aedes`) does not yet terminate TLS;
+   TLS must be offloaded (e.g., nginx reverse proxy) or added to
+   `mqtt-broker.ts` in a future change.
 3. ~~**Firmware OTA updates have no real cryptographic verification.**~~
    Replaced stub with real Ed25519 verification via libsodium
    (`firmware/src/ota.cpp:crypto_sign_verify_detached`).
@@ -79,7 +84,7 @@ Every claim below cites the file and line that implements it.
 
 ## Hardening checklist for exposed deployments
 - [x] Swap `better-sqlite3` for `better-sqlite3-multiple-ciphers` (encryption at rest via `PETSENSE_DB_KEY`).
-- [ ] Wire MQTT over TLS (`WiFiClientSecure` in firmware, TLS in `mqtt-broker.ts`).
+- [ ] Wire MQTT over TLS on the broker side (`aedes` → TLS in `mqtt-broker.ts`).
 - [x] Replace OTA signature stub with real Ed25519 verification
       (`firmware/src/ota.cpp` uses `crypto_sign_verify_detached` from libsodium).
 - [ ] Validate the ONNX model on real-world CSI data (`models/MODEL_CARD.md`

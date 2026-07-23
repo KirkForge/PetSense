@@ -4,6 +4,10 @@
 #include "secrets.h"
 #include "csi_extract.h"
 
+#ifdef MQTT_TLS_ENABLED
+#include <WiFiClientSecure.h>
+#endif
+
 #ifndef LED_PIN
 #define LED_PIN LED_BUILTIN
 #endif
@@ -12,7 +16,11 @@
 #define CSI_SAMPLE_RATE_MS 20
 #endif
 
+#ifdef MQTT_TLS_ENABLED
+static WiFiClientSecure wifiClient;
+#else
 static WiFiClient   wifiClient;
+#endif
 static PubSubClient mqtt(wifiClient);
 
 static unsigned long lastMqttAttempt  = 0;
@@ -71,6 +79,10 @@ void setup() {
         delay(5000);
         ESP.restart();
     }
+
+#ifdef MQTT_TLS_ENABLED
+    wifiClient.setCACert(MQTT_TLS_CA_CERT);
+#endif
 
     enableCSI();
     mqtt.setServer(MQTT_BROKER_IP, MQTT_PORT);
