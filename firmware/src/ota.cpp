@@ -1,30 +1,14 @@
 #include "ota.h"
+#include <sodium/crypto_sign.h>
 #include <string.h>
 
-// TODO(crypto): replace stub with real Ed25519 verify (libsodium or micro-ecc).
-// This stub validates the contract: correct signature length, magic prefix,
-// and a fixed test key match. A stub that always returns true would be a
-// false claim — this stub correctly rejects invalid inputs.
-
+// Test public key (seed 0x00..0x1f, Ed25519 verify key).
+// In production, replace with the real OTA signing public key in ota.key.
 static const uint8_t TEST_PUBLIC_KEY[OTA_PUBLIC_KEY_SIZE] = {
-    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-    0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
-    0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
-};
-
-// Test signing key (matches TEST_PUBLIC_KEY for the stub).
-// In production, this would be replaced by the actual Ed25519 verification
-// using the public key from ota.key (gitignored).
-static const uint8_t TEST_SIGNATURE[OTA_SIGNATURE_SIZE] = {
-    0xEF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0xa1, 0x07, 0xbf, 0xf3, 0xce, 0x10, 0xbe,
+    0x1d, 0x70, 0xdd, 0x18, 0xe7, 0x4b, 0xc0, 0x99,
+    0x67, 0xe4, 0xd6, 0x30, 0x9b, 0xa5, 0x0d, 0x5f,
+    0x1d, 0xdc, 0x86, 0x64, 0x12, 0x55, 0x31, 0xb8,
 };
 
 bool verifyUpdateSignature(
@@ -35,36 +19,19 @@ bool verifyUpdateSignature(
     const uint8_t* pubkey,
     size_t keyLen
 ) {
-    // Null firmware is invalid
     if (firmware == nullptr || fwLen == 0) {
         return false;
     }
 
-    // Signature must be exactly OTA_SIGNATURE_SIZE bytes
     if (sig == nullptr || sigLen != OTA_SIGNATURE_SIZE) {
         return false;
     }
 
-    // Public key must be exactly OTA_PUBLIC_KEY_SIZE bytes
     if (pubkey == nullptr || keyLen != OTA_PUBLIC_KEY_SIZE) {
         return false;
     }
 
-    // Signature must start with the magic byte
-    if (sig[0] != OTA_SIGNATURE_MAGIC) {
-        return false;
-    }
-
-    // Stub verification: compare signature and key against the test values.
-    // In a real implementation, this would use Ed25519 verify:
-    //   ed25519_verify(sig, firmware, fwLen, pubkey)
-    if (memcmp(sig, TEST_SIGNATURE, OTA_SIGNATURE_SIZE) != 0) {
-        return false;
-    }
-
-    if (memcmp(pubkey, TEST_PUBLIC_KEY, OTA_PUBLIC_KEY_SIZE) != 0) {
-        return false;
-    }
-
-    return true;
+    // Ed25519 verification via libsodium.
+    // crypto_sign_verify_detached returns 0 on valid signature, -1 on invalid.
+    return crypto_sign_verify_detached(sig, firmware, fwLen, pubkey) == 0;
 }

@@ -2,8 +2,31 @@
 
 // OTA signing public key template.
 // Copy this file to firmware/src/ota.key and fill in the real Ed25519
-// public key (32 bytes hex). ota.key is gitignored — only this template
-// is tracked.
+// public key (32 bytes, hex-encoded). ota.key is gitignored — only this
+// template is tracked.
+//
+// Format: two #define strings, each containing 16 hex bytes of the 32-byte
+// Ed25519 public key. The verify function reads these as the trusted signing
+// key for OTA updates.
+//
+// To generate a keypair:
+//   python3 -c "
+//     from nacl.signing import SigningKey
+//     sk = SigningKey.generate()
+//     vk = sk.verify_key
+//     pk = vk.encode()
+//     print('Public key:', pk.hex())
+//     print('Private key (KEEP SECRET):', sk.encode().hex())
+//   "
+//
+// To sign firmware:
+//   python3 -c "
+//     from nacl.signing import SigningKey
+//     sk = SigningKey(bytes.fromhex('<private-key-hex>'))
+//     firmware = open('firmware.bin', 'rb').read()
+//     sig = sk.sign(firmware).signature
+//     print('Signature:', sig.hex())
+//   "
 
-#define OTA_PUBKEY_01 "0102030405060708090a0b0c0d0e0f10"
-#define OTA_PUBKEY_02 "1112131415161718191a1b1c1d1e1f20"
+#define OTA_PUBKEY_01 "03a107bff3ce10be1d70dd18e74bc099"
+#define OTA_PUBKEY_02 "67e4d6309ba50d5f1ddc8664125531b8"
