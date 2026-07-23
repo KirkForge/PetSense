@@ -31,7 +31,9 @@
 
 ## Validation
 
-- **Real-world validation: NOT PERFORMED**
+- **Real-world validation: pending data collection**
+- See `models/data/real/README.md` for the data collection protocol.
+- Run `python3 models/validate_real.py --model edge-hub/models/petsense-v0.onnx --data models/data/real` to validate once data is available.
 - Model runs and produces shape-correct outputs via `onnxruntime-node`
 - Inference on zero tensor: `presence≈1.0`, `species=[≈0,≈0,1]` (cat), `activity=[…,0.9999]` (jumping)
 - **No per-class precision/recall on real CSI data**
