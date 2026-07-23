@@ -20,18 +20,19 @@ PetSense runs on a trusted home LAN. The default deployment assumes:
 Out of that trust boundary, the following are **known limitations** (not
 covered by current code):
 
-1. **Database is not encrypted at rest.** Location history on the RPi5
-   filesystem is plaintext SQLite (`better-sqlite3`). Use full-disk
-   encryption for the RPi5. (Planned: migration to
-   `better-sqlite3-multiple-ciphers` — see `edge-hub/src/db.ts` migration
-   runner, but the encryption swap itself is not yet implemented.)
+1. **Database encryption at rest requires `PETSENSE_DB_KEY`.** Without
+   the key, the database is plaintext SQLite (compatible with stock
+   `better-sqlite3`). With the key set, `better-sqlite3-multiple-ciphers`
+   encrypts at rest using SQLCipher (`PRAGMA key` + `PRAGMA
+   cipher_plaintext_header_size = 32`, `edge-hub/src/db.ts:82-85`).
+   Opening an encrypted database without the key throws
+   `SQLITE_NOTADB`.
 2. **MQTT broker uses plain TCP.** `firmware/src/main.cpp` uses
    `WiFiClient` (not `WiFiClientSecure`). MQTT over TLS (port 8883) is
    not yet wired.
-3. **Firmware OTA updates have no real cryptographic verification.**
-   `firmware/src/ota.cpp` implements a stub signature check (length,
-   magic prefix, test key comparison). Real Ed25519 verification is
-   TODO(crypto).
+3. ~~**Firmware OTA updates have no real cryptographic verification.**~~
+   Replaced stub with real Ed25519 verification via libsodium
+   (`firmware/src/ota.cpp:crypto_sign_verify_detached`).
 
 ## What is in place
 Every claim below cites the file and line that implements it.
@@ -77,10 +78,10 @@ Every claim below cites the file and line that implements it.
   NetworkFirst caching for `/api/health` and `/api/data`.
 
 ## Hardening checklist for exposed deployments
-- [ ] Swap `better-sqlite3` for `better-sqlite3-multiple-ciphers` (encryption at rest).
+- [x] Swap `better-sqlite3` for `better-sqlite3-multiple-ciphers` (encryption at rest via `PETSENSE_DB_KEY`).
 - [ ] Wire MQTT over TLS (`WiFiClientSecure` in firmware, TLS in `mqtt-broker.ts`).
-- [ ] Replace OTA signature stub with real Ed25519 verification
-      (`firmware/src/ota.cpp` TODO(crypto)).
+- [x] Replace OTA signature stub with real Ed25519 verification
+      (`firmware/src/ota.cpp` uses `crypto_sign_verify_detached` from libsodium).
 - [ ] Validate the ONNX model on real-world CSI data (`models/MODEL_CARD.md`
       documents `val_metrics=None`; synthetic-only training is the current state).
 - [ ] Run the hub under a dedicated unprivileged user (systemd `User=petsense`).

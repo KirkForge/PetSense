@@ -1,5 +1,5 @@
-import Database from 'better-sqlite3';
-import type { Database as DatabaseType } from 'better-sqlite3';
+import Database from 'better-sqlite3-multiple-ciphers';
+import type { Database as DatabaseType } from 'better-sqlite3-multiple-ciphers';
 import { child } from './logger.js';
 
 const log = child('db');
@@ -44,6 +44,10 @@ export const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    sql: `SELECT 1;`,
+  },
 ];
 
 export interface PositionRecord {
@@ -71,8 +75,14 @@ export interface ZoneRecord {
 export class DB {
   private db: DatabaseType;
 
-  constructor(path = ':memory:') {
+  constructor(path = ':memory:', encryptionKey?: string) {
+    const key = encryptionKey ?? process.env.PETSENSE_DB_KEY;
     this.db = new Database(path);
+    if (key) {
+      this.db.pragma(`cipher_plaintext_header_size = 32`);
+      this.db.pragma(`key = '${key.replace(/'/g, "''")}'`);
+      log.info('database encryption enabled');
+    }
     this.db.pragma('journal_mode = WAL');
     this.init();
     this.migrate();

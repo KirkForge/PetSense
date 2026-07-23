@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { DB, MIGRATIONS } from '../db.js';
-import Database from 'better-sqlite3';
+import Database from 'better-sqlite3-multiple-ciphers';
 
 describe('DB', () => {
   let db: DB;
@@ -66,9 +66,9 @@ describe('DB', () => {
     expect(tableNames).toContain('schema_version');
   });
 
-  it('v2 migration applies and bumps schema_version', () => {
+  it('v3 migration applies and bumps schema_version', () => {
     const testMigrations = [...MIGRATIONS, {
-      version: 2,
+      version: 3,
       sql: 'ALTER TABLE zones ADD COLUMN priority INTEGER DEFAULT 0',
     }];
     const rawDb = new Database(':memory:');
@@ -84,10 +84,46 @@ describe('DB', () => {
       })();
     }
     const versionRow = rawDb.prepare('SELECT MAX(version) as v FROM schema_version').get() as { v: number | null };
-    expect(versionRow.v).toBe(2);
+    expect(versionRow.v).toBe(3);
     const columns = rawDb.pragma('table_info(zones)') as { name: string }[];
     const columnNames = columns.map(c => c.name);
     expect(columnNames).toContain('priority');
     rawDb.close();
+  });
+
+  it('encrypted DB: data readable with key, unreadable without key', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const os = await import('node:os');
+    const tmpDir = os.tmpdir();
+    const dbPath = path.join(tmpDir, `petsense-test-enc-${Date.now()}.db`);
+    const key = 'test-sqlcipher-key';
+
+    try {
+      const encrypted = new DB(dbPath, key);
+      encrypted.insertPosition({ pet_id: 'dog-1', x: 1, y: 2, room: 'hall', timestamp: 9999 });
+      expect(encrypted.getRecentPositions('dog-1').length).toBe(1);
+      encrypted.close();
+
+      const reopened = new DB(dbPath, key);
+      const positions = reopened.getRecentPositions('dog-1');
+      expect(positions.length).toBe(1);
+      expect(positions[0].pet_id).toBe('dog-1');
+      reopened.close();
+
+      let readFailed = false;
+      try {
+        const raw = new Database(dbPath);
+        raw.prepare('SELECT COUNT(*) as cnt FROM positions').get();
+        raw.close();
+      } catch {
+        readFailed = true;
+      }
+      expect(readFailed).toBe(true);
+    } finally {
+      try { fs.unlinkSync(dbPath); } catch {}
+      try { fs.unlinkSync(`${dbPath}-wal`); } catch {}
+      try { fs.unlinkSync(`${dbPath}-shm`); } catch {}
+    }
   });
 });
